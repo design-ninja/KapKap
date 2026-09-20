@@ -9,7 +9,7 @@ struct ExportSizeMenu: View {
     }
 
     var body: some View {
-        Menu {
+        ChevronMenu {
             Picker("Size", selection: Binding(get: { model.width }, set: { model.setExportWidth($0) })) {
                 ForEach(percentages, id: \.self) { percent in
                     let width = width(for: percent)
@@ -20,11 +20,7 @@ struct ExportSizeMenu: View {
                     Text("\(model.width) × \(model.exportHeight) (Custom)").tag(model.width)
                 }
             }.pickerStyle(.inline)
-        } label: {
-            Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
-                .frame(width: 16, height: 22).contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help("Export size presets").accessibilityLabel("Export size presets")
     }
 }

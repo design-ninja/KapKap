@@ -30,7 +30,8 @@ The Codex Run action uses the same script.
 ## Recording
 
 1. The last selected area is restored on launch. Before an area is saved, the built-in display is selected (otherwise the main display). You can select a new area, display or window.
-2. Enable microphone / cursor / click highlighting if needed.
+2. Enable microphone / cursor / click highlighting if needed. Recording and export share one set of
+   frame rates — 60, 30, 24 and 15 fps; the editor never offers more than the recording holds.
 3. Press Record. Grant Screen Recording and, optionally, Microphone access when macOS asks.
 4. Pause/resume or stop from the recorder window or menu bar.
 5. The recording is saved automatically and opens in the editor.
@@ -43,10 +44,18 @@ Left-clicking the menu-bar icon opens the recorder panel; while recording it sto
 lets you return to the last area after choosing a display or window. A disconnected display
 or a saved area outside the current display bounds requires selecting a new area.
 
+The window picker lists one entry per app with an on-screen window, front to back. Choosing one
+activates that app and outlines the window that will be captured; the recorder panel stays on top.
+While an area is being drawn or resized, the selection panel fades out of the way.
+
 Originals are stored in `~/Library/Application Support/KapKap/Recordings`.
 Unfinished files have a leading dot and are retained for diagnosis rather than silently deleted.
 Exports preserve the original file. The editor supports trimming, resolution, frame rate,
-mute, and MP4, GIF, APNG, WebM, HEVC and AV1 export.
+mute, and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
+Closing the editor while its own recording has never been exported asks first, and offers to keep
+it in Recent recordings or move it to the Trash; imported videos are never touched. The recorder
+panel hides while an editor window is open. Recent recordings is a list with a 16:9 poster frame per row and can
+reveal a file in Finder or copy it to the clipboard.
 
 ## Architecture
 

@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Keep glass outside the selection overlay so its backdrop is the desktop.
 struct SelectionControlsWindow<Content: View>: NSViewRepresentable {
+    var hidden = false
     @ViewBuilder let content: () -> Content
 
     func makeNSView(context: Context) -> Anchor {
@@ -12,6 +13,7 @@ struct SelectionControlsWindow<Content: View>: NSViewRepresentable {
     func updateNSView(_ view: Anchor, context: Context) {
         view.host.rootView = content()
         view.presentIfNeeded()
+        view.setHidden(hidden)
     }
 
     static func dismantleNSView(_ view: Anchor, coordinator: ()) {
@@ -42,6 +44,17 @@ struct SelectionControlsWindow<Content: View>: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             presentIfNeeded()
+        }
+
+        /// The panel sits over the desktop, so it has to step aside while an area is being drawn.
+        func setHidden(_ hidden: Bool) {
+            let alpha: CGFloat = hidden ? 0 : 1
+            guard panel.alphaValue != alpha else { return }
+            panel.ignoresMouseEvents = hidden
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.12
+                panel.animator().alphaValue = alpha
+            }
         }
 
         func presentIfNeeded() {

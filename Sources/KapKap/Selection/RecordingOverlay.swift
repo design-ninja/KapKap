@@ -7,7 +7,7 @@ final class RecordingOverlay {
 
     func show(target: CaptureTarget, recording: Bool) {
         close()
-        guard target.windowID == nil, target.rect != target.screenFrame else { return }
+        guard !target.rect.isEmpty, target.rect != target.screenFrame else { return }
         for screen in NSScreen.screens {
             let intersection = target.rect.intersection(screen.frame)
             let hole = intersection.isNull ? CGRect.zero : CGRect(
@@ -41,12 +41,16 @@ private struct AreaShade: View {
 
     var body: some View {
         Canvas { context, size in
-            var shade = Path(CGRect(origin: .zero, size: size))
-            if !hole.isEmpty { shade.addRect(hole) }
-            context.fill(shade, with: .color(.black.opacity(recording ? 0.18 : 0.45)), style: FillStyle(eoFill: true))
-            if !hole.isEmpty {
-                context.stroke(Path(hole.insetBy(dx: -1, dy: -1)), with: .color(.white.opacity(0.9)), lineWidth: 1)
+            if recording {
+                var shade = Path(CGRect(origin: .zero, size: size))
+                if !hole.isEmpty { shade.addRect(hole) }
+                context.fill(shade, with: .color(.black.opacity(0.18)), style: FillStyle(eoFill: true))
             }
+            guard !hole.isEmpty else { return }
+            // Before recording the frame is only a marker, so it stays out of the way of the app behind it.
+            let outline = RoundedRectangle(cornerRadius: recording ? 0 : 6)
+                .path(in: hole.insetBy(dx: -1.5, dy: -1.5))
+            context.stroke(outline, with: .color(recording ? .white.opacity(0.9) : .accentColor), lineWidth: recording ? 1 : 3)
         }.ignoresSafeArea().allowsHitTesting(false)
     }
 }

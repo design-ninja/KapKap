@@ -25,6 +25,8 @@ final class CaptureStore {
     var changingPause = false
     var needsScreenAccess = false
     @ObservationIgnored weak var recorderWindow: NSWindow?
+    @ObservationIgnored private var openEditors = 0
+    @ObservationIgnored private var restoreRecorderWindow = false
     private let recorder = ScreenRecorder()
     private let selection = SelectionOverlay()
     private let areaOverlay = RecordingOverlay()
@@ -46,6 +48,21 @@ final class CaptureStore {
         }
         if let screen = builtIn ?? NSScreen.main { selectDisplay(screen) }
         refreshLibrary()
+    }
+
+    /// The editor is the focus while it is open; the recorder panel would only float on top of it.
+    func editorOpened() {
+        openEditors += 1
+        guard openEditors == 1 else { return }
+        restoreRecorderWindow = recorderWindow?.isVisible ?? false
+        recorderWindow?.orderOut(nil)
+    }
+
+    func editorClosed() {
+        openEditors = max(0, openEditors - 1)
+        guard openEditors == 0, restoreRecorderWindow else { return }
+        restoreRecorderWindow = false
+        recorderWindow?.makeKeyAndOrderFront(nil)
     }
 
     func refreshLibrary() {
@@ -85,12 +102,18 @@ final class CaptureStore {
         isLoadingWindows = true
         defer { isLoadingWindows = false }
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
             needsScreenAccess = false
-            windows = content.windows.filter {
-                $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier &&
-                $0.windowLayer == 0 && $0.frame.width > 40 && $0.frame.height > 40
-            }.sorted { ($0.owningApplication?.applicationName ?? "") < ($1.owningApplication?.applicationName ?? "") }
+            var seen = Set<String>()
+            // Helper panels and background agents are noise here: one entry per app, front to back.
+            windows = content.windows.filter { window in
+                guard let application = window.owningApplication,
+                      application.processID != ProcessInfo.processInfo.processIdentifier,
+                      !application.applicationName.isEmpty,
+                      window.isOnScreen, window.windowLayer == 0,
+                      window.frame.width > 120, window.frame.height > 80 else { return false }
+                return seen.insert(application.bundleIdentifier).inserted
+            }
         } catch {
             windows = []
             if CapturePermissions.isDenied(error) { needsScreenAccess = true }
@@ -106,9 +129,29 @@ final class CaptureStore {
         } ?? NSScreen.main
         guard let screen, let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
         areaOverlay.close()
-        target = CaptureTarget(displayID: number.uint32Value, screenFrame: screen.frame, rect: window.frame,
-                               scale: screen.backingScaleFactor, windowID: window.windowID,
-                               name: window.title ?? window.owningApplication?.applicationName ?? "Window")
+        // Picking the current window again clears the choice and falls back to the display behind it.
+        guard target?.windowID != window.windowID else { return selectDisplay(screen) }
+        let target = CaptureTarget(displayID: number.uint32Value, screenFrame: screen.frame,
+                                   rect: Self.screenRect(window.frame), scale: screen.backingScaleFactor,
+                                   windowID: window.windowID,
+                                   name: window.owningApplication?.applicationName ?? window.title ?? "Window")
+        self.target = target
+        // Bring the app forward and outline it, so the chosen window is both visible and obviously framed.
+        if let processID = window.owningApplication?.processID {
+            NSRunningApplication(processIdentifier: processID)?.activate()
+            // That activation raises the app over the recorder, which still has to be reachable.
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(250))
+                self?.recorderWindow?.orderFrontRegardless()
+            }
+        }
+        areaOverlay.show(target: target, recording: false)
+    }
+
+    /// ScreenCaptureKit reports window frames top-left down; AppKit panels are laid out bottom-left up.
+    private static func screenRect(_ frame: CGRect) -> CGRect {
+        guard let primary = NSScreen.screens.first else { return frame }
+        return CGRect(x: frame.minX, y: primary.frame.maxY - frame.maxY, width: frame.width, height: frame.height)
     }
 
     func start() async {
@@ -126,7 +169,8 @@ final class CaptureStore {
             startedAt = Date()
             pausedAt = nil
             pauseDuration = 0
-            areaOverlay.show(target: target, recording: true)
+            if target.windowID == nil { areaOverlay.show(target: target, recording: true) }
+            else { areaOverlay.close() }
             phase = .recording
             recorderWindow?.orderOut(nil)
         } catch {

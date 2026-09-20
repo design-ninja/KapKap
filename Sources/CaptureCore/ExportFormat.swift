@@ -34,7 +34,7 @@ public struct ExportOptions: Sendable {
     }
 
     public func arguments(input: URL, output: URL) throws -> [String] {
-        guard start.isFinite, end.isFinite, start >= 0, end > start, width >= 2, fps > 0, fps <= 60 else {
+        guard start.isFinite, end.isFinite, start >= 0, end > start, width >= 2, fps > 0, fps <= FrameRate.maximum else {
             throw NSError(domain: "KapKap.Export", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid export range, dimensions or frame rate."])
         }
         let scale = "fps=\(fps),scale=\(width / 2 * 2):-2:flags=lanczos"

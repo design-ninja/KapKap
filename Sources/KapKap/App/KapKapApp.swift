@@ -8,6 +8,7 @@ struct KapKapApp: App {
     var body: some Scene {
         Window("KapKap", id: "recorder") {
             RecorderView(store: store)
+                .windowDismissBehavior(.enabled)
                 .onAppear { delegate.store = store }
         }
         .windowStyle(.plain)
@@ -15,6 +16,9 @@ struct KapKapApp: App {
         .defaultPosition(.center)
         .defaultLaunchBehavior(.presented)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About KapKap") { AppAbout.show() }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Select Recording Area") { store.selectArea() }
                     .keyboardShortcut("2", modifiers: [.command, .shift]).disabled(store.busy)
@@ -25,15 +29,18 @@ struct KapKapApp: App {
             .defaultSize(width: 560, height: 380)
 
         WindowGroup("Editor", id: "editor", for: URL.self) { $url in
-            if let url { EditorView(url: url) }
-        }.defaultSize(width: 800, height: 640)
+            if let url { EditorView(url: url, store: store) }
+        }.defaultSize(width: 900, height: 620)
 
         Settings {
-            VStack(spacing: 20) {
-                RecordingOptionsView(settings: $store.settings)
+            VStack(spacing: 4) {
+                RecordingOptionsView(settings: $store.settings) {
+                    CaptureSourceView(store: store)
+                    Divider()
+                }
                 Divider()
                 RecordingShortcutView(hotKey: store.recordingHotKey)
-            }.padding(24).frame(width: 420)
+            }.padding(20).frame(width: 420)
                 .disabled(store.busy)
         }
 
@@ -42,7 +49,7 @@ struct KapKapApp: App {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     weak var store: CaptureStore? {
         didSet { installRecordingShortcut() }
     }
@@ -69,9 +76,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        configureCloseCommand(in: NSApp.mainMenu)
+
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
             NSApp.applicationIconImage = NSImage(contentsOf: url)
         }
+    }
+
+    private func configureCloseCommand(in menu: NSMenu?) {
+        for item in menu?.items ?? [] {
+            if item.action == #selector(NSWindow.performClose(_:)) {
+                item.target = self
+                item.action = #selector(closeWindow(_:))
+            }
+            configureCloseCommand(in: item.submenu)
+        }
+    }
+
+    private var windowToClose: NSWindow? {
+        NSApp.keyWindow ?? NSApp.mainWindow ?? store?.recorderWindow.flatMap { $0.isVisible ? $0 : nil }
+    }
+
+    @objc private func closeWindow(_ sender: Any?) {
+        guard let window = windowToClose else { return }
+        if EditorCloseCoordinator.intercept(window) { return }
+        if window === store?.recorderWindow {
+            window.close()
+        } else {
+            window.performClose(sender)
+        }
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(closeWindow(_:)) { return windowToClose != nil }
+        return true
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

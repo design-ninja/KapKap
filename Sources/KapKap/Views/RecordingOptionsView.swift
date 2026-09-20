@@ -1,4 +1,5 @@
 import AVFoundation
+import CaptureCore
 import SwiftUI
 
 struct RecordingOptionsView<Source: View>: View {
@@ -19,9 +20,9 @@ struct RecordingOptionsView<Source: View>: View {
                 Text("Frame rate")
                 Spacer(minLength: 12)
                 Picker("Frame rate", selection: $settings.fps) {
-                    Text("30 fps").tag(30)
-                    Text("60 fps").tag(60)
+                    ForEach(FrameRate.choices.reversed(), id: \.self) { Text("\($0)").tag($0) }
                 }.labelsHidden().pickerStyle(.segmented).fixedSize()
+                Text("fps").foregroundStyle(.secondary)
             }.frame(minHeight: 30)
             Divider()
             option("Show cursor", value: $settings.showCursor)
@@ -29,19 +30,21 @@ struct RecordingOptionsView<Source: View>: View {
             option("Highlight clicks", value: $settings.highlightClicks)
             Divider()
             option("Microphone", value: $settings.microphone)
-            Divider()
-            HStack(spacing: 10) {
-                Text("Audio input")
-                Spacer(minLength: 12)
-                Picker("Audio input", selection: $settings.microphoneID) {
-                    Text("System default").tag(String?.none)
-                    ForEach(devices, id: \.uniqueID) { device in
-                        Text(device.localizedName).tag(Optional(device.uniqueID))
+            if settings.microphone {
+                Divider()
+                HStack(spacing: 10) {
+                    Text("Audio input")
+                    Spacer(minLength: 12)
+                    Picker("Audio input", selection: $settings.microphoneID) {
+                        Text("System default").tag(String?.none)
+                        ForEach(devices, id: \.uniqueID) { device in
+                            Text(device.localizedName).tag(Optional(device.uniqueID))
+                        }
                     }
-                }
-                .labelsHidden().pickerStyle(.menu)
-                .frame(maxWidth: 180, alignment: .trailing)
-            }.frame(minHeight: 30)
+                    .labelsHidden().pickerStyle(.menu)
+                    .frame(maxWidth: 180, alignment: .trailing)
+                }.frame(minHeight: 30)
+            }
 
         }
         .font(.system(size: 12)).controlSize(.small)

@@ -1,21 +1,25 @@
 import SwiftUI
 
 struct RecorderGlass: ViewModifier {
+    var cornerRadius: CGFloat = 20
+
     @ViewBuilder func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content.background {
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20))
+                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: cornerRadius))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 20)
+                        RoundedRectangle(cornerRadius: cornerRadius)
                             .fill(.black.opacity(0.4))
                             .allowsHitTesting(false)
                     }
                     .environment(\.colorScheme, .dark)
             }
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(.white.opacity(0.12)))
         } else {
-            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(.white.opacity(0.12)))
         }
     }
 }

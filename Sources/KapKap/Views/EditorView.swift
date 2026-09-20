@@ -3,27 +3,52 @@ import AVKit
 
 struct EditorView: View {
     @State private var model: EditorStore
+    private let store: CaptureStore
+    @Environment(\.dismiss) private var dismiss
 
-    init(url: URL) { _model = State(initialValue: EditorStore(url: url)) }
+    init(url: URL, store: CaptureStore) {
+        _model = State(initialValue: EditorStore(url: url))
+        self.store = store
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottom) {
                 RecordingPlayerView(player: model.player)
-                LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 110).allowsHitTesting(false)
-                playbackControls.padding(.horizontal, 20).padding(.bottom, 16)
+                if !model.loaded { ProgressView().controlSize(.small) }
+                playbackControls.padding(.horizontal, 14).padding(.bottom, 14)
             }
             .frame(minHeight: 260, maxHeight: .infinity)
             .background(.black)
+            .alert("Discard this recording?", isPresented: $model.confirmingDiscard) {
+                Button("Cancel", role: .cancel) { }
+                Button("Keep in Recordings") {
+                    model.approveClose()
+                    dismiss()
+                }
+                Button("Discard", role: .destructive) {
+                    model.discardRecording()
+                    store.refreshLibrary()
+                    model.approveClose()
+                    dismiss()
+                }
+            } message: {
+                Text("It has not been exported yet. Keeping it leaves the original in Recent recordings; discarding moves it to the Trash.")
+            }
             EditorExportBar(model: model)
         }
-        .frame(minWidth: 760, minHeight: 330)
-        .background(EditorWindowLayout(title: model.url.lastPathComponent,
-                                       aspectRatio: model.loaded ? Double(model.sourceWidth) / Double(model.sourceHeight) : nil))
-        .navigationTitle(model.url.lastPathComponent)
+        .frame(minWidth: 820, minHeight: 340)
+        .background(EditorWindowLayout(url: model.url,
+                                       aspectRatio: model.loaded ? Double(model.sourceWidth) / Double(model.sourceHeight) : nil,
+                                       closeRequest: { model.requestClose() }))
+        .navigationTitle(model.url.deletingPathExtension().lastPathComponent)
         .task { await model.load() }
-        .onDisappear { model.player.pause(); model.cancelExport() }
+        .onAppear { store.editorOpened() }
+        .onDisappear {
+            model.player.pause()
+            model.cancelExport()
+            store.editorClosed()
+        }
         .alert("KapKap", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK", role: .cancel) { model.error = nil }
         } message: { Text(model.error?.text ?? "") }
@@ -31,29 +56,59 @@ struct EditorView: View {
 
     private var playbackControls: some View {
         TimelineView(.periodic(from: .now, by: 0.1)) { _ in
-            HStack(spacing: 14) {
+            let time = model.player.currentTime().seconds
+            HStack(spacing: 10) {
                 Button { model.togglePlayback() } label: {
-                    Image(systemName: model.player.rate > 0 ? "pause.fill" : "play.fill").frame(width: 18, height: 24)
+                    Image(systemName: model.player.rate > 0 ? "pause.fill" : "play.fill")
                 }
+                .buttonStyle(GlyphButtonStyle(size: 30, glyph: 14))
                 .keyboardShortcut(.space, modifiers: [])
-                .help("Play / pause (Space)")
+                .help("Play or pause (Space)")
                 .accessibilityLabel(model.player.rate > 0 ? "Pause" : "Play selection")
-                Text(EditorTimelineView.timestamp(model.player.currentTime().seconds))
-                    .monospacedDigit().frame(width: 56, alignment: .leading)
-                EditorTimelineView(model: model, playhead: model.player.currentTime().seconds)
-                Button { model.start = 0; model.end = model.duration; model.seekPreview(0) } label: {
-                    Image(systemName: "arrow.uturn.backward")
-                }.help("Reset trim").accessibilityLabel("Reset trim")
-                    .disabled(model.start == 0 && model.end == model.duration)
+
+                HStack(spacing: 4) {
+                    Text(EditorTimelineView.timestamp(time, precise: false)).foregroundStyle(.white)
+                    Text("/").foregroundStyle(.white.opacity(0.3))
+                    Text(EditorTimelineView.timestamp(model.duration, precise: false)).foregroundStyle(.white.opacity(0.5))
+                }
+                .font(.system(size: 11).monospacedDigit())
+                .frame(width: 92, alignment: .leading)
+                .accessibilityLabel("Playback time")
+
+                EditorTimelineView(model: model, playhead: time)
+
+                if model.trimmed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "scissors").font(.system(size: 9, weight: .bold))
+                        Text(EditorTimelineView.timestamp(model.end - model.start, precise: false))
+                    }
+                    .font(.system(size: 11).monospacedDigit()).foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 8).frame(height: 22)
+                    .background(.white.opacity(0.1), in: Capsule())
+                    .help("Selected length")
+                    Button { model.resetTrim() } label: { Image(systemName: "arrow.uturn.backward") }
+                        .buttonStyle(GlyphButtonStyle())
+                        .help("Reset trim").accessibilityLabel("Reset trim")
+                }
                 Button { model.muted.toggle(); model.player.isMuted = model.muted } label: {
                     Image(systemName: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                }.help(model.muted ? "Include audio" : "Mute audio")
-                    .accessibilityLabel(model.muted ? "Include audio" : "Mute audio")
+                }
+                .buttonStyle(GlyphButtonStyle())
+                .help(model.muted ? "Include audio" : "Mute audio")
+                .accessibilityLabel(model.muted ? "Include audio" : "Mute audio")
                 Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                }.help("Full screen").accessibilityLabel("Full screen")
+                }
+                .buttonStyle(GlyphButtonStyle())
+                .help("Full screen").accessibilityLabel("Full screen")
             }
-            .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 14).fill(.ultraThinMaterial)
+                    .overlay(RoundedRectangle(cornerRadius: 14).fill(.black.opacity(0.3)))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.1)))
+                    .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
+            }
             .disabled(!model.loaded || model.exporting)
         }
     }

@@ -9,6 +9,7 @@ struct SelectionView: View {
     @State private var dragOrigin: CGRect?
     @State private var moving = false
     @State private var resizeAnchor: CGPoint?
+    @State private var interacting = false
     @State private var ratio = "Free"
     @State private var locked = false
     @State private var width = ""
@@ -38,6 +39,7 @@ struct SelectionView: View {
                         dragOrigin = nil
                         resizeAnchor = nil
                         pointer = nil
+                        interacting = false
                         syncFields()
                         NSCursor.arrow.set()
                     })
@@ -53,19 +55,23 @@ struct SelectionView: View {
                 if selection.isEmpty {
                     Text("Drag to select · Esc to cancel")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(12).background(.black.opacity(0.6), in: Capsule())
-                        .position(x: geometry.size.width / 2, y: 50)
+                        .foregroundStyle(.white.opacity(0.95))
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.12)))
+                        .position(x: geometry.size.width / 2, y: 54)
                         .allowsHitTesting(false)
                 }
                 if let pointer {
-                    Text(selection.isEmpty ? "\(Int(pointer.x)), \(Int(pointer.y))" : "\(Int(selection.width)) × \(Int(selection.height)) pt")
-                        .font(.system(size: 10, weight: .medium)).foregroundStyle(.white)
-                        .padding(5).background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 6))
+                    Text(selection.isEmpty ? "\(Int(pointer.x)), \(Int(pointer.y))" : "\(Int(selection.width)) × \(Int(selection.height))")
+                        .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.12)))
                         .position(x: min(pointer.x + 55, geometry.size.width - 60), y: min(pointer.y + 18, geometry.size.height - 16))
                         .allowsHitTesting(false)
                 }
-                SelectionControlsWindow {
+                SelectionControlsWindow(hidden: interacting) {
                     controls(bounds: geometry.size)
                         .fixedSize()
                         .simultaneousGesture(WindowDragGesture())
@@ -77,54 +83,68 @@ struct SelectionView: View {
 
     private func controls(bounds: CGSize) -> some View {
         HStack(spacing: 8) {
-            Button(action: cancel) { Image(systemName: "arrow.left") }
-                .help("Cancel selection").accessibilityLabel("Cancel selection")
-            Picker("Aspect ratio", selection: $ratio) {
-                Text("Free").tag("Free")
-                ForEach(ratios, id: \.self) { Text($0).tag($0) }
-                if ratio == "Custom" { Text("Custom").tag("Custom") }
-            }.labelsHidden().frame(width: 90)
-                .onChange(of: ratio) { _, value in
-                    if value == "Free" { locked = false; return }
-                    guard let aspect = aspect(value) else { return }
-                    locked = true
-                    resize(width: selection.width, height: selection.width / aspect, bounds: bounds)
-                }
+            Button(action: cancel) { Image(systemName: "xmark") }
+                .help("Cancel selection (Esc)").accessibilityLabel("Cancel selection")
+            separator
+            MenuField(title: ratio, width: 86) {
+                Picker("Aspect ratio", selection: $ratio) {
+                    Text("Free").tag("Free")
+                    ForEach(ratios, id: \.self) { Text($0).tag($0) }
+                    if ratio == "Custom" { Text("Custom").tag("Custom") }
+                }.pickerStyle(.inline)
+            }
+            .help("Aspect ratio").accessibilityLabel("Aspect ratio")
+            .onChange(of: ratio) { _, value in
+                if value == "Free" { locked = false; return }
+                guard let aspect = aspect(value) else { return }
+                locked = true
+                resize(width: selection.width, height: selection.width / aspect, bounds: bounds)
+            }
             Button {
                 locked.toggle()
                 if locked { ratio = "Custom" }
-            } label: { Image(systemName: locked ? "link" : "link.badge.plus") }
+            } label: { Image(systemName: locked ? "lock.fill" : "lock.open") }
                 .help(locked ? "Unlock proportions" : "Lock proportions")
                 .accessibilityLabel("Lock proportions").accessibilityValue(locked ? "On" : "Off")
+            FieldSurface {
+                TextField("W", text: $width)
+                    .focused($focusedDimension, equals: .width)
+                    .modifier(FieldText(width: 52, focused: focusedDimension == .width))
+                    .onSubmit { commitWidth(bounds) }
+                    .accessibilityLabel("Selection width in points")
+                Text("×").font(.system(size: 11)).foregroundStyle(.white.opacity(0.35))
+                TextField("H", text: $height)
+                    .focused($focusedDimension, equals: .height)
+                    .modifier(FieldText(width: 52, focused: focusedDimension == .height))
+                    .onSubmit { commitHeight(bounds) }
+                    .accessibilityLabel("Selection height in points")
+                Button {
+                    ratio = "Custom"
+                    resize(width: selection.height, height: selection.width, bounds: bounds)
+                } label: { Image(systemName: "arrow.left.arrow.right") }
+                    .buttonStyle(GlyphButtonStyle(size: 22, glyph: 11, radius: 5))
+                    .help("Swap width and height").accessibilityLabel("Swap width and height")
+            }.help("Selection size in points")
+            separator
             Button {
                 if focusedDimension == .height { commitHeight(bounds) }
                 else { commitWidth(bounds) }
                 focusedDimension = nil
                 completion(selection)
             } label: {
-                Circle().fill(.red).frame(width: 40, height: 40).frame(width: 62, height: 62)
-            }.buttonStyle(.plain).help("Start recording").accessibilityLabel("Start recording")
-                .disabled(selection.width < 16 || selection.height < 16)
-            TextField("Width", text: $width)
-                .focused($focusedDimension, equals: .width)
-                .frame(width: 64).onSubmit { commitWidth(bounds) }
-                .accessibilityLabel("Selection width in points")
-            Button {
-                ratio = "Custom"
-                resize(width: selection.height, height: selection.width, bounds: bounds)
-            } label: { Image(systemName: "arrow.left.arrow.right") }
-                .help("Swap width and height").accessibilityLabel("Swap width and height")
-            TextField("Height", text: $height)
-                .focused($focusedDimension, equals: .height)
-                .frame(width: 64).onSubmit { commitHeight(bounds) }
-                .accessibilityLabel("Selection height in points")
+                Circle().fill(.red).frame(width: 40, height: 40)
+                    .frame(width: 62, height: 62).contentShape(Circle())
+            }
+            .buttonStyle(RecordingButtonStyle())
+            .help("Start recording").accessibilityLabel("Start recording")
+            .disabled(selection.width < 16 || selection.height < 16)
         }
         .onChange(of: focusedDimension) { previous, _ in
             if previous == .width { commitWidth(bounds) }
             if previous == .height { commitHeight(bounds) }
         }
-        .buttonStyle(RecorderIconButtonStyle()).textFieldStyle(.roundedBorder)
-        .font(.system(size: 12)).controlSize(.small)
+        .buttonStyle(RecorderIconButtonStyle())
+        .font(.system(size: 12))
         .foregroundStyle(.white)
         .padding(.horizontal, 12).padding(.vertical, 10)
         .environment(\.colorScheme, .dark)
@@ -132,6 +152,10 @@ struct SelectionView: View {
         .onHover { inside in
             if inside { pointer = nil; NSCursor.arrow.set() }
         }
+    }
+
+    private var separator: some View {
+        Rectangle().fill(.white.opacity(0.12)).frame(width: 1, height: 28)
     }
 
     private func aspect(_ value: String) -> Double? {
@@ -145,6 +169,7 @@ struct SelectionView: View {
     }
 
     private func updateDrag(_ drag: DragGesture.Value, bounds: CGSize) {
+        interacting = true
         if dragOrigin == nil {
             dragOrigin = selection
             let points = corners(selection)

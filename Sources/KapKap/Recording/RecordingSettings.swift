@@ -1,7 +1,9 @@
 import Foundation
+import CaptureCore
 
 struct RecordingSettings {
-    var fps = UserDefaults.standard.integer(forKey: "fps") == 60 ? 60 : 30
+    var fps = FrameRate.choices.contains(UserDefaults.standard.integer(forKey: "fps"))
+        ? UserDefaults.standard.integer(forKey: "fps") : FrameRate.standard
     var microphone = UserDefaults.standard.bool(forKey: "microphone")
     var microphoneID = UserDefaults.standard.string(forKey: "microphoneID")
     var showCursor = UserDefaults.standard.object(forKey: "showCursor") as? Bool ?? true

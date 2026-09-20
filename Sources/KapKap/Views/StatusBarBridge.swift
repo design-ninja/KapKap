@@ -35,7 +35,9 @@ struct StatusBarBridge: NSViewRepresentable {
             self.configuration = configuration
             let store = configuration.store
             let symbol = store.active ? (store.phase == .paused ? "pause.circle" : "stop.circle.fill") : "record.circle"
-            let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "KapKap")
+            // The default symbol size reads small against the rest of the menu bar.
+            let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "KapKap")?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 17, weight: .regular))
             image?.isTemplate = true
             item.button?.image = image
             if store.phase == .recording && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {

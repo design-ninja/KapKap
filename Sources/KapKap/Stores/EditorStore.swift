@@ -17,6 +17,7 @@ final class EditorStore {
     var exportHeight: Int { max(2, Int((Double(width) * Double(sourceHeight) / Double(sourceWidth) / 2).rounded()) * 2) }
     var fps = 30
     private var sourceFPS = 30
+    var frameRateChoices: [Int] { FrameRate.choices(upTo: sourceFPS) }
     var format = ExportFormat.mp4
     var quality = MP4Quality.balanced
     var keepOriginal = false
@@ -30,6 +31,16 @@ final class EditorStore {
     var copiedToClipboard = false
     var error: UserMessage?
     var loaded = false
+    var copyDestination = true
+    var confirmingDiscard = false
+    private var closeApproved = false
+    var trimmed: Bool { start > 0 || end < duration }
+    /// Only KapKap's own recordings are offered for discarding; an imported video is the user's file.
+    private var ownRecording: Bool {
+        guard let folder = try? RecordingLibrary.directory() else { return false }
+        return url.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL
+    }
+    var needsDiscardConfirmation: Bool { loaded && exportedURL == nil && !exporting && ownRecording }
     private var exportTask: Task<Void, Never>?
     private let scopedAccess: Bool
 
@@ -55,11 +66,12 @@ final class EditorStore {
                 sourceHeight = max(2, Int(abs(size.applying(transform).height)))
                 width = sourceWidth
                 let rate = try await track.load(.nominalFrameRate)
-                fps = max(1, min(60, Int(rate.rounded())))
+                fps = FrameRate.clamp(Int(rate.rounded()))
                 let metadata = try await asset.load(.commonMetadata)
                 for item in metadata where item.commonKey == .commonKeyDescription {
                     if let text = try await item.load(.stringValue), text.hasPrefix("KapKap recording fps="),
-                       let recordedFPS = Int(text.dropFirst("KapKap recording fps=".count)), (1...60).contains(recordedFPS) {
+                       let recordedFPS = Int(text.dropFirst("KapKap recording fps=".count)),
+                       (1...FrameRate.maximum).contains(recordedFPS) {
                         fps = recordedFPS
                     }
                 }
@@ -67,6 +79,30 @@ final class EditorStore {
             }
             loaded = true
         } catch { self.error = UserMessage(text: error.localizedDescription) }
+    }
+
+    /// Returns true when the close was taken over: the confirmation is on screen and owns the window now.
+    func requestClose() -> Bool {
+        guard !closeApproved, needsDiscardConfirmation else { return false }
+        guard !confirmingDiscard else { return true }
+        player.pause()
+        confirmingDiscard = true
+        return true
+    }
+
+    /// The answer has been given, so the next close request goes straight through.
+    func approveClose() { closeApproved = true }
+
+    func discardRecording() {
+        player.pause()
+        cancelExport()
+        try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+    }
+
+    func resetTrim() {
+        start = 0
+        end = duration
+        seekPreview(0)
     }
 
     func setExportWidth(_ value: Int) {
@@ -145,6 +181,7 @@ final class EditorStore {
                     self.copiedToClipboard = true
                 }
                 self.exportedURL = destination
+                NSSound(named: "Glass")?.play()
             } catch is CancellationError { }
             catch { self.error = UserMessage(text: error.localizedDescription) }
         }
