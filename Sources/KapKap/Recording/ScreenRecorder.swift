@@ -60,6 +60,11 @@ final class ScreenRecorder {
         config.showMouseClicks = settings.highlightClicks
         config.captureMicrophone = settings.microphone
         config.microphoneCaptureDeviceID = settings.microphoneID
+        config.capturesAudio = settings.systemAudio
+        // KapKap's own sounds (the export chime) never belong in a recording.
+        config.excludesCurrentProcessAudio = true
+        config.sampleRate = 48_000
+        config.channelCount = 2
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.colorSpaceName = CGColorSpace.sRGB
         let output = try RecordingLibrary.newURL()
@@ -70,6 +75,7 @@ final class ScreenRecorder {
         let stream = SCStream(filter: filter, configuration: config, delegate: sink)
         try stream.addStreamOutput(sink, type: .screen, sampleHandlerQueue: sink.queue)
         if settings.microphone { try stream.addStreamOutput(sink, type: .microphone, sampleHandlerQueue: sink.queue) }
+        if settings.systemAudio { try stream.addStreamOutput(sink, type: .audio, sampleHandlerQueue: sink.queue) }
         self.sink = sink
         self.stream = stream
         destination = output

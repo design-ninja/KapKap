@@ -122,6 +122,14 @@ private struct ExportAction: View {
                     Text("Copy to Clipboard").tag(true)
                     Text("Save to File…").tag(false)
                 }.pickerStyle(.inline)
+                Divider()
+                Menu("Open With") {
+                    ForEach(model.openWithApplications, id: \.self) { application in
+                        Button { model.exportAndOpen(with: application) } label: {
+                            Label { Text(Self.name(of: application)) } icon: { Image(nsImage: Self.icon(of: application)) }
+                        }
+                    }
+                }
             } label: {
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white).frame(width: 24, height: 30)
@@ -132,9 +140,19 @@ private struct ExportAction: View {
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
             .onHover { menuHovered = $0 }
-            .help("Choose where the export goes")
+            .help("Choose where the export goes, or open it in another app")
             .accessibilityLabel("Export destination")
         }
         .background(Color.accentColor.opacity(enabled ? 1 : 0.3), in: RoundedRectangle(cornerRadius: ControlSurface.radius))
+    }
+
+    private static func name(of application: URL) -> String {
+        FileManager.default.displayName(atPath: application.path).replacingOccurrences(of: ".app", with: "")
+    }
+
+    private static func icon(of application: URL) -> NSImage {
+        let icon = NSWorkspace.shared.icon(forFile: application.path)
+        icon.size = NSSize(width: 16, height: 16)
+        return icon
     }
 }

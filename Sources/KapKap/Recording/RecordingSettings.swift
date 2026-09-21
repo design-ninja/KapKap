@@ -1,10 +1,12 @@
 import Foundation
 import CaptureCore
 
-struct RecordingSettings {
+struct RecordingSettings: Equatable {
     var fps = FrameRate.choices.contains(UserDefaults.standard.integer(forKey: "fps"))
         ? UserDefaults.standard.integer(forKey: "fps") : FrameRate.standard
     var microphone = UserDefaults.standard.bool(forKey: "microphone")
+    /// What the Mac plays (apps, video, calls), captured by ScreenCaptureKit without extra software.
+    var systemAudio = UserDefaults.standard.bool(forKey: "systemAudio")
     var microphoneID = UserDefaults.standard.string(forKey: "microphoneID")
     var showCursor = UserDefaults.standard.object(forKey: "showCursor") as? Bool ?? true
     var highlightClicks = UserDefaults.standard.bool(forKey: "highlightClicks")
@@ -13,6 +15,7 @@ struct RecordingSettings {
         let defaults = UserDefaults.standard
         defaults.set(fps, forKey: "fps")
         defaults.set(microphone, forKey: "microphone")
+        defaults.set(systemAudio, forKey: "systemAudio")
         defaults.set(microphoneID, forKey: "microphoneID")
         defaults.set(showCursor, forKey: "showCursor")
         defaults.set(highlightClicks, forKey: "highlightClicks")

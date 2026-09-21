@@ -45,4 +45,23 @@ final class RecordingHotKeyTests: XCTestCase {
         XCTAssertNil(RecordingShortcut(event: try event([.shift, .option])))
         XCTAssertEqual(RecordingShortcut(event: try event([.command, .control, .option])), .standard)
     }
+
+    @MainActor func testSecondShortcutKeepsItsOwnChoiceAndCannotTakeTheFirstOnesKeys() throws {
+        let suite = "KapKap-shortcut-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let modifiers = UInt32(cmdKey | controlKey | optionKey)
+        let recordKeys = RecordingShortcut(keyCode: UInt32(kVK_F13), modifiers: modifiers, key: "F13")
+        let selectKeys = RecordingShortcut(keyCode: UInt32(kVK_F14), modifiers: modifiers, key: "F14")
+        let record = RecordingHotKey(defaults: defaults, standard: recordKeys)
+        let select = RecordingHotKey(defaults: defaults, preferenceKey: "selectionShortcut", id: 2, standard: selectKeys)
+        XCTAssertEqual(record.register(), noErr)
+        XCTAssertEqual(select.register(), noErr)
+        XCTAssertFalse(select.update(recordKeys))
+        XCTAssertEqual(select.shortcut, selectKeys)
+        let moved = RecordingShortcut(keyCode: UInt32(kVK_F15), modifiers: modifiers, key: "F15")
+        XCTAssertTrue(select.update(moved))
+        XCTAssertEqual(RecordingHotKey(defaults: defaults, preferenceKey: "selectionShortcut", id: 2, standard: selectKeys).shortcut, moved)
+        XCTAssertEqual(RecordingHotKey(defaults: defaults, standard: recordKeys).shortcut, recordKeys)
+    }
 }

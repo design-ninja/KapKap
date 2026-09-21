@@ -1,37 +1,37 @@
 import SwiftUI
 
+/// One global shortcut as a Settings form row: the current keys, click to record new ones, reset.
 struct RecordingShortcutView: View {
     let hotKey: RecordingHotKey
+    var title = "Start / stop recording"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Start / stop recording")
-                Spacer(minLength: 12)
+        LabeledContent {
+            HStack(spacing: 6) {
                 Button(hotKey.isListening ? "Press shortcut…" : hotKey.shortcut.label) {
                     if hotKey.isListening { hotKey.cancelListening() }
                     else { hotKey.beginListening() }
                 }
                 .help("Click, then press a new keyboard shortcut")
-                .accessibilityLabel("Recording shortcut")
+                .accessibilityLabel("\(title) shortcut")
                 .accessibilityValue(hotKey.isListening ? "Listening" : hotKey.shortcut.label)
                 Button {
                     hotKey.cancelListening()
-                    hotKey.update(.standard)
+                    hotKey.update(hotKey.standard)
                 } label: { Image(systemName: "arrow.uturn.backward") }
-                .help("Reset to ⌃⌥⌘R")
-                .disabled(hotKey.shortcut == .standard && !hotKey.isListening)
-            }.frame(minHeight: 30)
-            Text(hotKey.isListening ? "Press Command or Control with a letter or number. Esc cancels." :
-                 "Works across apps. Click the shortcut to change it.")
-                .font(.caption).foregroundStyle(.secondary)
-            if let error = hotKey.error {
-                Text(error).font(.caption).foregroundStyle(.red)
+                .help("Reset to \(hotKey.standard.label)")
+                .accessibilityLabel("Reset \(title) shortcut")
+                .disabled(hotKey.shortcut == hotKey.standard && !hotKey.isListening)
             }
-            Text("Shortcuts used only inside other apps may not be detected.")
-                .font(.caption).foregroundStyle(.secondary)
+        } label: {
+            Text(title)
+            if hotKey.isListening {
+                Text("Press Command or Control with a letter or number. Esc cancels.")
+            }
+            if let error = hotKey.error {
+                Text(error).foregroundStyle(.red)
+            }
         }
-        .font(.system(size: 12)).controlSize(.small)
         .onDisappear { hotKey.cancelListening() }
     }
 }

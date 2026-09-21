@@ -17,6 +17,7 @@ final class EditorStore {
     var exportHeight: Int { max(2, Int((Double(width) * Double(sourceHeight) / Double(sourceWidth) / 2).rounded()) * 2) }
     var fps = 30
     private var sourceFPS = 30
+    private var audioTracks = 1
     var frameRateChoices: [Int] { FrameRate.choices(upTo: sourceFPS) }
     var format = ExportFormat.mp4
     var quality = MP4Quality.balanced
@@ -40,7 +41,11 @@ final class EditorStore {
         guard let folder = try? RecordingLibrary.directory() else { return false }
         return url.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL
     }
-    var needsDiscardConfirmation: Bool { loaded && exportedURL == nil && !exporting && ownRecording }
+    /// A recording exported in any session is never offered for discarding again: macOS reopens editor
+    /// windows after a relaunch, and "not exported yet" would then be wrong about a finished export.
+    var needsDiscardConfirmation: Bool {
+        loaded && exportedURL == nil && !exporting && ownRecording && !ExportedRecordings.contains(url)
+    }
     private var exportTask: Task<Void, Never>?
     private let scopedAccess: Bool
 
@@ -77,6 +82,7 @@ final class EditorStore {
                 }
                 sourceFPS = fps
             }
+            audioTracks = try await asset.loadTracks(withMediaType: .audio).count
             loaded = true
         } catch { self.error = UserMessage(text: error.localizedDescription) }
     }
@@ -137,6 +143,7 @@ final class EditorStore {
         panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .data]
         panel.nameFieldStringValue = url.deletingPathExtension().lastPathComponent + "." + format.fileExtension
         panel.canCreateDirectories = true
+        panel.directoryURL = ExportPreferences.preparedDirectory()
         panel.begin { [weak self] response in
             guard response == .OK, let destination = panel.url, let self else { return }
             guard destination.standardizedFileURL != self.url.standardizedFileURL else {
@@ -149,25 +156,62 @@ final class EditorStore {
 
     func copyToClipboard() {
         guard !exporting, loaded else { return }
-        do {
-            let directory = try FileManager.default.url(for: .applicationSupportDirectory,
-                in: .userDomainMask, appropriateFor: nil, create: true)
-                .appendingPathComponent("KapKap/Clipboard/\(UUID().uuidString)", isDirectory: true)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let destination = directory.appendingPathComponent(url.deletingPathExtension().lastPathComponent)
-                .appendingPathExtension(format.fileExtension)
-            export(to: destination, copyToClipboard: true)
-        } catch { self.error = UserMessage(text: error.localizedDescription) }
+        do { export(to: try scratchDestination(in: "Clipboard"), copyToClipboard: true) }
+        catch { self.error = UserMessage(text: error.localizedDescription) }
     }
 
-    private func export(to destination: URL, copyToClipboard: Bool) {
+    /// Apps that can open the current format: the system default first, then by name, one entry per app
+    /// even when several copies of it are installed (an old download, an Xcode build).
+    var openWithApplications: [URL] {
+        guard let type = UTType(filenameExtension: format.fileExtension) else { return [] }
+        let workspace = NSWorkspace.shared
+        let preferred = workspace.urlForApplication(toOpen: type)
+        var byIdentifier: [String: URL] = [:]
+        for application in workspace.urlsForApplications(toOpen: type) {
+            let identifier = Bundle(url: application)?.bundleIdentifier ?? application.path
+            if let kept = byIdentifier[identifier], Self.rank(kept, preferred: preferred) <= Self.rank(application, preferred: preferred) { continue }
+            byIdentifier[identifier] = application
+        }
+        return byIdentifier.values.sorted {
+            let (left, right) = (Self.rank($0, preferred: preferred), Self.rank($1, preferred: preferred))
+            if (left == 0) != (right == 0) { return left == 0 }
+            return FileManager.default.displayName(atPath: $0.path)
+                .localizedStandardCompare(FileManager.default.displayName(atPath: $1.path)) == .orderedAscending
+        }
+    }
+
+    /// Which copy of an app to show: the default handler, then the installed one, then anything else.
+    private static func rank(_ application: URL, preferred: URL?) -> Int {
+        if application.standardizedFileURL == preferred?.standardizedFileURL { return 0 }
+        let path = application.path
+        return path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/") ? 1 : 2
+    }
+
+    /// Kap's "Open With": export to a scratch file and hand it straight to another app.
+    func exportAndOpen(with application: URL) {
+        guard !exporting, loaded else { return }
+        do { export(to: try scratchDestination(in: "Open With"), copyToClipboard: false, openWith: application) }
+        catch { self.error = UserMessage(text: error.localizedDescription) }
+    }
+
+    private func scratchDestination(in folder: String) throws -> URL {
+        let directory = try FileManager.default.url(for: .applicationSupportDirectory,
+            in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("KapKap/\(folder)/\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent(url.deletingPathExtension().lastPathComponent)
+            .appendingPathExtension(format.fileExtension)
+    }
+
+    private func export(to destination: URL, copyToClipboard: Bool, openWith application: URL? = nil) {
         guard !exporting else { return }
         player.pause()
         exporting = true
         exportedURL = nil
         copiedToClipboard = false
         let options = ExportOptions(format: format, start: start, end: end,
-                                    width: width, fps: fps, muted: muted, quality: quality)
+                                    width: width, fps: fps, muted: muted, quality: quality,
+                                    loop: ExportPreferences.loop, audioTracks: audioTracks)
         let preserveOriginal = keepOriginal && canKeepOriginal
         exportTask = Task {
             defer { self.exporting = false; self.exportTask = nil }
@@ -180,7 +224,12 @@ final class EditorStore {
                     }
                     self.copiedToClipboard = true
                 }
+                if let application {
+                    _ = try await NSWorkspace.shared.open([destination], withApplicationAt: application,
+                                                          configuration: NSWorkspace.OpenConfiguration())
+                }
                 self.exportedURL = destination
+                ExportedRecordings.insert(self.url)
                 NSSound(named: "Glass")?.play()
             } catch is CancellationError { }
             catch { self.error = UserMessage(text: error.localizedDescription) }
@@ -188,4 +237,19 @@ final class EditorStore {
     }
 
     func cancelExport() { exportTask?.cancel() }
+}
+
+/// Recordings that have been exported at least once, remembered across launches by file name.
+enum ExportedRecordings {
+    private static let key = "exportedRecordings"
+
+    static func contains(_ url: URL) -> Bool {
+        UserDefaults.standard.stringArray(forKey: key)?.contains(url.lastPathComponent) ?? false
+    }
+
+    static func insert(_ url: URL) {
+        var names = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        guard names.insert(url.lastPathComponent).inserted else { return }
+        UserDefaults.standard.set(names.sorted(), forKey: key)
+    }
 }

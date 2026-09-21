@@ -13,12 +13,20 @@ final class RecordingHotKey {
     @ObservationIgnored private var focusObserver: NSObjectProtocol?
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored var action: (() -> Void)?
-    private static let preferenceKey = "recordingShortcut"
+    /// What a reset returns to.
+    let standard: RecordingShortcut
+    @ObservationIgnored private let preferenceKey: String
+    /// Tells this shortcut's presses apart from the other KapKap shortcuts, which share one signature.
+    @ObservationIgnored private let id: UInt32
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, preferenceKey: String = "recordingShortcut",
+         id: UInt32 = 1, standard: RecordingShortcut = .standard) {
         self.defaults = defaults
-        shortcut = defaults.data(forKey: Self.preferenceKey)
-            .flatMap { try? JSONDecoder().decode(RecordingShortcut.self, from: $0) } ?? .standard
+        self.preferenceKey = preferenceKey
+        self.id = id
+        self.standard = standard
+        shortcut = defaults.data(forKey: preferenceKey)
+            .flatMap { try? JSONDecoder().decode(RecordingShortcut.self, from: $0) } ?? standard
     }
 
     @discardableResult func register() -> OSStatus {
@@ -32,6 +40,8 @@ final class RecordingHotKey {
                                         nil, MemoryLayout<EventHotKeyID>.size, nil, &id) == noErr,
                       id.signature == 0x4B41504B else { return OSStatus(eventNotHandledErr) }
                 let service = Unmanaged<RecordingHotKey>.fromOpaque(context).takeUnretainedValue()
+                // Every KapKap shortcut installs a handler; the others pass the press along.
+                guard id.id == service.id else { return OSStatus(eventNotHandledErr) }
                 Task { @MainActor in if !service.isListening { service.action?() } }
                 return noErr
             }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &handler)
@@ -54,7 +64,7 @@ final class RecordingHotKey {
         if let hotKey { UnregisterEventHotKey(hotKey) }
         hotKey = replacement
         shortcut = candidate
-        defaults.set(try? JSONEncoder().encode(candidate), forKey: Self.preferenceKey)
+        defaults.set(try? JSONEncoder().encode(candidate), forKey: preferenceKey)
         return true
     }
 
@@ -95,7 +105,7 @@ final class RecordingHotKey {
     }
 
     private func create(_ value: RecordingShortcut, reference: inout EventHotKeyRef?) -> OSStatus {
-        RegisterEventHotKey(value.keyCode, value.modifiers, EventHotKeyID(signature: 0x4B41504B, id: 1),
+        RegisterEventHotKey(value.keyCode, value.modifiers, EventHotKeyID(signature: 0x4B41504B, id: id),
                            GetApplicationEventTarget(), 0, &reference)
     }
 

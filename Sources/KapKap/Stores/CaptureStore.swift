@@ -14,6 +14,7 @@ final class CaptureStore {
     var target: CaptureTarget?
     var settings = RecordingSettings()
     let recordingHotKey = RecordingHotKey()
+    let selectionHotKey = RecordingHotKey(preferenceKey: "selectionShortcut", id: 2, standard: .selection)
     var error: UserMessage?
     var recent: [URL] = []
     var latestRecording: URL?

@@ -6,11 +6,22 @@ struct KapKapApp: App {
     @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    /// The panel carries the selection controls, so it has to be on screen first.
+    private func selectArea() {
+        guard store.phase == .idle else { return }
+        openWindow(id: "recorder")
+        NSApp.activate(ignoringOtherApps: true)
+        store.selectArea()
+    }
+
     var body: some Scene {
         Window("KapKap", id: "recorder") {
             RecorderView(store: store)
                 .windowDismissBehavior(.enabled)
-                .onAppear { delegate.store = store }
+                .onAppear {
+                    delegate.selectArea = { selectArea() }
+                    delegate.store = store
+                }
         }
         .windowStyle(.plain)
         .windowResizability(.contentSize)
@@ -21,12 +32,8 @@ struct KapKapApp: App {
                 Button("About KapKap") { AppAbout.show() }
             }
             CommandGroup(replacing: .newItem) {
-                Button("Select Recording Area") {
-                    // The panel carries the selection controls now, so it has to be on screen.
-                    openWindow(id: "recorder")
-                    store.selectArea()
-                }
-                    .keyboardShortcut("2", modifiers: [.command, .shift]).disabled(store.busy)
+                Button("Select Recording Area") { selectArea() }
+                    .keyboardShortcut(store.selectionHotKey.shortcut.keyboardShortcut).disabled(store.busy)
             }
         }
 
@@ -37,19 +44,7 @@ struct KapKapApp: App {
             if let url { EditorView(url: url, store: store) }
         }.defaultSize(width: 900, height: 620)
 
-        Settings {
-            VStack(spacing: 4) {
-                RecordingOptionsView(settings: $store.settings) {
-                    CaptureSourceView(store: store)
-                    Divider()
-                }
-                Divider()
-                RecordingShortcutView(hotKey: store.recordingHotKey)
-            }.padding(20).frame(width: 420)
-                .disabled(store.busy)
-        }
-
-
+        Settings { SettingsView(store: store) }
     }
 }
 
@@ -58,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     weak var store: CaptureStore? {
         didSet { installRecordingShortcut() }
     }
+    var selectArea: (() -> Void)?
     private var shortcutInstalled = false
 
     private func installRecordingShortcut() {
@@ -78,6 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         let status = shortcut.register()
         if status != noErr, let error = shortcut.error { store.error = UserMessage(text: error) }
+        store.selectionHotKey.action = { [weak self] in self?.selectArea?() }
+        if store.selectionHotKey.register() != noErr, let error = store.selectionHotKey.error {
+            store.error = UserMessage(text: error)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

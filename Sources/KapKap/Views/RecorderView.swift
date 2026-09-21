@@ -6,7 +6,6 @@ struct RecorderView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @State private var showWindows = false
-    @State private var showOptions = false
     @FocusState private var dimension: SelectionControlsView.Dimension?
     @Namespace private var panel
     private var selecting: Bool { store.phase == .selecting }
@@ -19,7 +18,9 @@ struct RecorderView: View {
                                           focus: $dimension, side: .leading)
                 } else {
                     Button { store.selectArea() } label: { Image(systemName: "viewfinder") }
-                        .help("Select area (⌘⇧2)").keyboardShortcut("2", modifiers: [.command, .shift])
+                        .help("Select area (\(store.selectionHotKey.shortcut.label))")
+                        .accessibilityLabel("Select area")
+                        .keyboardShortcut(store.selectionHotKey.shortcut.keyboardShortcut)
                         .disabled(store.busy)
 
                     Button { focusPanel(); showWindows.toggle() } label: {
@@ -52,17 +53,13 @@ struct RecorderView: View {
                     } else {
                         Button { store.refreshLibrary(); openWindow(id: "recordings") } label: {
                             Image(systemName: "clock.arrow.circlepath")
-                        }.help("Recent recordings")
+                        }.help("Recent recordings").accessibilityLabel("Recent recordings")
                     }
-                    Button { focusPanel(); showOptions.toggle() } label: {
+                    Button { openSettings(); NSApp.activate(ignoringOtherApps: true) } label: {
                         Image(systemName: "ellipsis")
                             .foregroundStyle(.white)
                     }
-                    .help(showOptions ? "Hide recording details" : "Show recording details")
-                    .accessibilityLabel(showOptions ? "Hide recording details" : "Show recording details")
-                    // A popover keeps the panel one size and lets AppKit place the details on screen,
-                    // wherever the panel floats — inline details ran off the edge near the Dock.
-                    .popover(isPresented: $showOptions, arrowEdge: .bottom) { options }
+                    .help("Settings").accessibilityLabel("Settings")
                 }
             }
             .buttonStyle(RecorderIconButtonStyle())
@@ -82,7 +79,6 @@ struct RecorderView: View {
         }
         .background(RecorderWindowChrome(store: store, hidden: store.selectionModel.interacting))
         // A popover over an unfocused panel renders its controls inactive, so take focus first.
-        .onChange(of: showOptions) { _, shown in if shown { focusPanel() } }
         .onChange(of: showWindows) { _, shown in if shown { focusPanel() } }
         .background(StatusBarBridge(store: store, phase: store.phase, showRecorder: {
             openWindow(id: "recorder"); NSApp.activate(ignoringOtherApps: true)
@@ -138,36 +134,5 @@ struct RecorderView: View {
                             : "Record (\(store.recordingHotKey.shortcut.label))"
     }
 
-    private var options: some View {
-        VStack(spacing: 4) {
-            if store.active {
-                CaptureSourceView(store: store)
-            } else {
-                RecordingOptionsView(settings: $store.settings) {
-                    CaptureSourceView(store: store)
-                    Divider()
-                }
-                Divider().padding(.vertical, 4)
-                VStack(spacing: 1) {
-                    menuRow("About") { AppAbout.show() }
-                    menuRow("Quit") { NSApp.terminate(nil) }.disabled(store.busy)
-                }
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .frame(width: 300)
-        .foregroundStyle(.primary)
-    }
-
-    private func menuRow(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.system(size: 12))
-                .padding(.horizontal, 6).padding(.vertical, 5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }.buttonStyle(MenuRowStyle())
-            // The highlight reaches into the margin so the title lines up with the option labels.
-            .padding(.horizontal, -6)
-    }
 
 }

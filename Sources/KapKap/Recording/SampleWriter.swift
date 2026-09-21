@@ -8,6 +8,8 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
     private let writer: AVAssetWriter
     private let video: AVAssetWriterInput
     private let audio: AVAssetWriterInput?
+    /// System audio gets its own track so the microphone stays separable; exports mix the two.
+    private let systemAudio: AVAssetWriterInput?
     private let frameDuration: CMTime
     private var timeline = RecordingTimeline()
     private var lastVideoTime: CMTime?
@@ -38,16 +40,19 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
         video.expectsMediaDataInRealTime = true
         guard writer.canAdd(video) else { throw CaptureError.message("Cannot configure the video encoder.") }
         writer.add(video)
-        if settings.microphone {
+        let writer = self.writer
+        func audioInput(channels: Int, bitRate: Int) throws -> AVAssetWriterInput {
             let input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
                 AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48_000,
-                AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 128_000
+                AVNumberOfChannelsKey: channels, AVEncoderBitRateKey: bitRate
             ])
             input.expectsMediaDataInRealTime = true
             guard writer.canAdd(input) else { throw CaptureError.message("Cannot configure the audio encoder.") }
             writer.add(input)
-            audio = input
-        } else { audio = nil }
+            return input
+        }
+        audio = settings.microphone ? try audioInput(channels: 1, bitRate: 128_000) : nil
+        systemAudio = settings.systemAudio ? try audioInput(channels: 2, bitRate: 192_000) : nil
         super.init()
     }
 
@@ -77,7 +82,8 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
             guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
                   let status = attachments.first?[.status] as? Int, status == SCFrameStatus.complete.rawValue else { return }
             input = video
-        } else if type == .microphone, let audio { input = audio } else { return }
+        } else if type == .microphone, let audio { input = audio }
+        else if type == .audio, let systemAudio { input = systemAudio } else { return }
         let timestamp = sample.presentationTimeStamp
         if timeline.origin == nil {
             guard type == .screen else { return }
@@ -123,6 +129,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
                         self.writer.endSession(atSourceTime: endTime)
                         self.video.markAsFinished()
                         self.audio?.markAsFinished()
+                        self.systemAudio?.markAsFinished()
                         self.lastVideoSample = nil
                         self.writer.finishWriting {
                             if self.writer.status == .completed { continuation.resume() }

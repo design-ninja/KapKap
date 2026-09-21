@@ -27,10 +27,17 @@ public struct ExportOptions: Sendable {
     public var fps: Int
     public var muted: Bool
     public var quality: MP4Quality
+    /// GIF and APNG only: play forever, or once.
+    public var loop: Bool
+    /// Audio tracks in the source: a recording with system audio and a microphone has two, and an
+    /// export would otherwise keep only the first.
+    public var audioTracks: Int
 
-    public init(format: ExportFormat, start: Double, end: Double, width: Int, fps: Int, muted: Bool, quality: MP4Quality = .balanced) {
+    public init(format: ExportFormat, start: Double, end: Double, width: Int, fps: Int, muted: Bool,
+                quality: MP4Quality = .balanced, loop: Bool = true, audioTracks: Int = 1) {
         self.format = format; self.start = start; self.end = end
-        self.width = width; self.fps = fps; self.muted = muted; self.quality = quality
+        self.width = width; self.fps = fps; self.muted = muted; self.quality = quality; self.loop = loop
+        self.audioTracks = audioTracks
     }
 
     public func arguments(input: URL, output: URL) throws -> [String] {
@@ -42,9 +49,9 @@ public struct ExportOptions: Sendable {
                     "-t", String(end - start)]
         switch format {
         case .gif:
-            args += ["-filter_complex", "\(scale),split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a", "-an", "-loop", "0"]
+            args += ["-filter_complex", "\(scale),split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a", "-an", "-loop", loop ? "0" : "-1"]
         case .apng:
-            args += ["-vf", scale, "-an", "-plays", "0", "-f", "apng"]
+            args += ["-vf", scale, "-an", "-plays", loop ? "0" : "1", "-f", "apng"]
         case .mp4:
             args += ["-vf", scale, "-c:v", "libx264",
                      "-preset", quality == .balanced ? "fast" : "medium",
@@ -59,7 +66,16 @@ public struct ExportOptions: Sendable {
             args += ["-vf", scale, "-c:v", "libsvtav1", "-crf", "30", "-preset", "8", "-pix_fmt", "yuv420p", "-movflags", "+faststart"]
         }
         if format != .gif && format != .apng {
-            args += muted ? ["-an"] : ["-c:a", format == .webm ? "libopus" : "aac", "-b:a", "128k"]
+            if muted || audioTracks == 0 {
+                args += ["-an"]
+            } else {
+                if audioTracks > 1 {
+                    let inputs = (0..<audioTracks).map { "[0:a:\($0)]" }.joined()
+                    args += ["-filter_complex", "\(inputs)amix=inputs=\(audioTracks):duration=longest:normalize=0[mix]",
+                             "-map", "0:v:0", "-map", "[mix]"]
+                }
+                args += ["-c:a", format == .webm ? "libopus" : "aac", "-b:a", audioTracks > 1 ? "192k" : "128k"]
+            }
         }
         return args + [output.path]
     }

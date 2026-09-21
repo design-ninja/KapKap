@@ -87,6 +87,8 @@ private struct RecordingRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Recording \(title), \(subtitle)")
         .accessibilityAddTraits(.isButton)
+        // The tap gesture is invisible to VoiceOver; without this the "button" does nothing when pressed.
+        .accessibilityAction { open() }
         .contextMenu {
             Button("Open in Editor") { open() }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
