@@ -149,8 +149,8 @@ struct RecorderView: View {
                 }
                 Divider().padding(.vertical, 4)
                 VStack(spacing: 1) {
-                    menuRow("About KapKap") { AppAbout.show() }
-                    menuRow("Quit KapKap") { NSApp.terminate(nil) }.disabled(store.busy)
+                    menuRow("About") { AppAbout.show() }
+                    menuRow("Quit") { NSApp.terminate(nil) }.disabled(store.busy)
                 }
             }
         }
@@ -166,6 +166,8 @@ struct RecorderView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
         }.buttonStyle(MenuRowStyle())
+            // The highlight reaches into the margin so the title lines up with the option labels.
+            .padding(.horizontal, -6)
     }
 
 }

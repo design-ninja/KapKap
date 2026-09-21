@@ -1,8 +1,27 @@
 # KapKap
 
-Native Apple Silicon screen recorder inspired by [Kap](https://github.com/wulkano/Kap).
-SwiftUI interface, ScreenCaptureKit capture, AVFoundation recording. No Electron,
-Node.js, Rosetta, or plugin system.
+A native Swift fork of [Kap](https://github.com/wulkano/Kap), the open-source screen recorder,
+for Apple Silicon Macs. It is a rewrite rather than a copy of Kap's code: SwiftUI interface,
+ScreenCaptureKit capture and AVFoundation recording instead of Electron and Node.js.
+
+## Not at feature parity with Kap
+
+KapKap is not a full fork: it covers recording, trimming and exporting, and leaves out much of
+what Kap does around them. Missing compared with Kap:
+
+- **Plugins.** There is no plugin system, so none of Kap's share plugins (Dropbox, Giphy,
+  Streamable, Imgur and others), editing plugins or recording plugins (camera overlay, hiding
+  desktop icons, Do Not Disturb) are available. Exports can only be saved to a file or copied.
+- **Open with.** Kap's built-in action to hand an export straight to another app is missing.
+- **Export settings.** No lossy GIF compression, and no switch for looping exports (GIFs always loop).
+- **Save location.** Recordings are kept in the app's own folder; there is no preference for a
+  default folder like Kap's `~/Movies/Kaptures`.
+- **Shortcuts.** Only the start/stop shortcut is customisable and global; there is no global,
+  configurable shortcut for opening the area selector.
+- **Exports window.** No list of running and finished exports with progress.
+- **App life cycle.** No launch at login and no automatic updates.
+- **Intel Macs.** Apple Silicon only.
+- **Migration.** Kap's settings and recording history are not imported.
 
 ## Development
 

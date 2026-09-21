@@ -19,6 +19,8 @@ struct RecorderWindowChrome: NSViewRepresentable {
     final class DragSurface: NSView {
         weak var store: CaptureStore?
         private var resizeObserver: NSObjectProtocol?
+        private var showObserver: NSObjectProtocol?
+        private var restored = false
         override var mouseDownCanMoveWindow: Bool { false }
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -26,7 +28,25 @@ struct RecorderWindowChrome: NSViewRepresentable {
         }
 
         deinit {
-            if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
+            for observer in [resizeObserver, showObserver].compactMap({ $0 }) {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+
+        private func restoreOnce() {
+            restored = true
+            if let showObserver { NotificationCenter.default.removeObserver(showObserver) }
+            showObserver = nil
+            restoreOrigin()
+        }
+
+        /// Puts the panel back where it was left last time, as long as that spot is still on a screen.
+        private func restoreOrigin() {
+            guard let window, let origin = RecorderWindowPosition.load() else { return }
+            let frame = NSRect(origin: origin, size: window.frame.size)
+            guard NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) else { return }
+            window.setFrameOrigin(origin)
+            keepOnScreen()
         }
 
         /// The panel sits over the desktop, so it steps aside while an area is being drawn.
@@ -78,9 +98,34 @@ struct RecorderWindowChrome: NSViewRepresentable {
                         MainActor.assumeIsolated { self?.keepOnScreen() }
                     }
             }
+            // SwiftUI centers the window as it orders it in, so the saved spot is applied only once it shows.
+            if !restored, window.occlusionState.contains(.visible) {
+                restoreOnce()
+            } else if showObserver == nil, !restored {
+                showObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+                        MainActor.assumeIsolated {
+                            guard let self, self.window?.occlusionState.contains(.visible) == true else { return }
+                            self.restoreOnce()
+                        }
+                    }
+            }
             for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
                 window.standardWindowButton(button)?.isHidden = true
             }
         }
+    }
+}
+
+/// Where the user last dropped the panel, kept across launches.
+enum RecorderWindowPosition {
+    private static let key = "recorderWindowOrigin"
+
+    static func save(_ origin: CGPoint) {
+        UserDefaults.standard.set(NSStringFromPoint(origin), forKey: key)
+    }
+
+    static func load() -> CGPoint? {
+        UserDefaults.standard.string(forKey: key).map(NSPointFromString)
     }
 }

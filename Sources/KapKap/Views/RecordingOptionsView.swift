@@ -58,8 +58,10 @@ struct RecordingOptionsView<Source: View>: View {
         HStack {
             Text(title)
             Spacer(minLength: 12)
+            // Even the mini switch outweighs the 12 pt labels, so it is drawn a notch smaller.
             NativeSwitch(isOn: value, label: title)
                 .fixedSize()
+                .scaleEffect(0.8, anchor: .trailing)
         }.frame(maxWidth: .infinity, minHeight: 30)
     }
 }

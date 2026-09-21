@@ -32,6 +32,9 @@ struct RecorderWindowDrag: ViewModifier {
                                                           visibleFrame: visible))
                 }
                 .onEnded { _ in
+                    if initialOrigin != nil, let window = store.recorderWindow {
+                        RecorderWindowPosition.save(window.frame.origin)
+                    }
                     initialOrigin = nil
                     initialPointer = nil
                     snapping.reset()
