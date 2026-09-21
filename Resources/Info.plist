@@ -1,20 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-    <key>CFBundleExecutable</key><string>KapKap</string>
-    <key>CFBundleIdentifier</key><string>com.lirik.KapKap</string>
-    <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>CFBundleName</key><string>KapKap</string>
-    <key>CFBundleDisplayName</key><string>KapKap</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
-    <key>LSMinimumSystemVersion</key><string>15.0</string>
-    <key>NSPrincipalClass</key><string>NSApplication</string>
-    <key>NSMicrophoneUsageDescription</key><string>KapKap records your microphone when you enable audio for a screen recording.</string>
-    <key>NSScreenCaptureUsageDescription</key><string>KapKap records the screen area or window you select.</string>
-    <key>NSHighResolutionCapable</key><true/>
-    <key>SUFeedURL</key><string>https://github.com/design-ninja/KapKap/releases/latest/download/appcast.xml</string>
-    <key>SUPublicEDKey</key><string>SPARKLE_PUBLIC_KEY</string>
-    <key>SUEnableAutomaticChecks</key><true/>
-</dict></plist>
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>KapKap</string>
+	<key>CFBundleExecutable</key>
+	<string>KapKap</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.lirik.KapKap</string>
+	<key>CFBundleName</key>
+	<string>KapKap</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.0</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>KapKap records your microphone when you enable audio for a screen recording.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>KapKap records the screen area or window you select.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/design-ninja/KapKap/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>SPARKLE_PUBLIC_KEY</string>
+</dict>
+</plist>

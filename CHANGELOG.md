@@ -6,6 +6,8 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
 ### Added
 
 - Automatic updates through Sparkle: KapKap checks GitHub Releases for a signed update and
@@ -54,5 +56,6 @@ All notable changes to KapKap are listed here. The format follows
 - Recent recordings list with poster frames, reveal in Finder and copy to clipboard.
 - The last selected area is restored on launch.
 
-[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/design-ninja/KapKap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/design-ninja/KapKap/releases/tag/v0.1.0
