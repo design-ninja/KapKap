@@ -7,7 +7,7 @@
 <p align="center">A native macOS screen recorder for Apple Silicon, rebuilt in Swift from Kap.</p>
 
 <p align="center">
-  <img src="docs/images/recorder.png" width="540" alt="The KapKap recorder panel with its options open: display, frame rate, cursor, click highlighting and microphone">
+  <img src="docs/images/recorder.png" width="800" alt="The KapKap recorder panel with its options open: display, frame rate, cursor, click highlighting and microphone">
 </p>
 
 A native Swift fork of [Kap](https://github.com/wulkano/Kap), the open-source screen recorder,
