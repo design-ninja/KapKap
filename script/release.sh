@@ -77,6 +77,11 @@ KAPKAP_CONFIGURATION=release KAPKAP_RELEASE=1 KAPKAP_APP="$APP" KAPKAP_INFO_PLIS
     KAPKAP_SIGNING_IDENTITY="$IDENTITY" ./script/build_and_run.sh --build-only
 
 ARCHIVE="$OUT/KapKap-$VERSION.zip"
+# The GPL and LGPL parts of the bundled FFmpeg ship with their source (THIRD_PARTY_NOTICES.md).
+SOURCES_DIR="$ROOT_DIR/dist/release/sources"
+SOURCES="$OUT/KapKap-$VERSION-third-party-sources.tar"
+ls "$SOURCES_DIR"/ffmpeg-*.tar.* >/dev/null 2>&1 || fail "put the FFmpeg, x264, x265, LAME and mpg123 sources in $SOURCES_DIR"
+tar -cf "$SOURCES" -C "$SOURCES_DIR" .
 if [[ "$DRY_RUN" == "0" ]]; then
     # 3. Notarize, then staple so the app opens offline, then archive the stapled app.
     ditto -c -k --keepParent "$APP" "$OUT/notarize.zip"
@@ -124,6 +129,6 @@ fi
 git commit -m "chore: release $VERSION" -- "$PLIST" CHANGELOG.md
 git tag -a "$TAG" -m "KapKap $VERSION"
 git push origin HEAD "$TAG"
-gh release create "$TAG" "$ARCHIVE" "$OUT/appcast.xml" --repo "$REPO" \
+gh release create "$TAG" "$ARCHIVE" "$OUT/appcast.xml" "$SOURCES" --repo "$REPO" \
     --title "KapKap $VERSION" --notes-file "$OUT/notes.md" --latest
 echo "Released $TAG: https://github.com/$REPO/releases/tag/$TAG"

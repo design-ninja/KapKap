@@ -25,14 +25,33 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## Sparkle — MIT License
+
+Updates are installed with Sparkle 2 (https://sparkle-project.org), MIT-licensed;
+see https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE.
+
 ## Export tools
 
-Local builds bundle the installed ARM FFmpeg and its linked libraries from Homebrew.
-FFmpeg: https://ffmpeg.org/legal.html
-Homebrew formula and build configuration: https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/f/ffmpeg.rb
+Exports run a bundled FFmpeg as a separate program. It and the libraries it loads are built by
+Homebrew (https://github.com/Homebrew/homebrew-core) and are unmodified.
 
-The installed encoder build includes GPL components (including x264/x265). This local
-development bundle is not a public release. Before distributing it, collect the exact
-library licenses, corresponding source/build instructions and notices for the bundled
-versions, and choose a compatible distribution license for KapKap. Developer ID signing
-and notarization also remain release work.
+| Component | Version | License |
+| --- | --- | --- |
+| FFmpeg | 8.1.2 | GPL-3.0-or-later (built with --enable-gpl --enable-version3) |
+| x264 | r3222 (b35605a) | GPL-2.0-or-later |
+| x265 | 4.2 | GPL-2.0-or-later |
+| LAME | 4.0 | LGPL-2.0-or-later |
+| mpg123 | 1.33.7 | LGPL-2.1-only |
+| SVT-AV1 | 4.2.0 | BSD-3-Clause |
+| dav1d | 1.5.4 | BSD-2-Clause |
+| libvpx | 1.16.0 | BSD-3-Clause |
+| Opus | 1.6.1 | BSD-3-Clause |
+| libvmaf | 3.2.0 | BSD-2-Clause-Patent |
+| OpenSSL | 3.6.3 | Apache-2.0 |
+
+The GNU license texts are in `Contents/Resources/Licenses` inside the app. The complete source
+code of the GPL and LGPL components above, in exactly these versions, is attached to every
+GitHub release as `KapKap-<version>-third-party-sources.tar`
+(https://github.com/design-ninja/KapKap/releases). The build recipes are the Homebrew formulae
+for these versions. You may replace the bundled FFmpeg with your own build: it is
+`Contents/Resources/ffmpeg`, with its libraries in `Contents/Frameworks`.

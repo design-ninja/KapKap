@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @Bindable var store: CaptureStore
     @Environment(\.openWindow) private var openWindow
-    @State private var importing = false
 
     var body: some View {
         Group {
@@ -26,21 +25,10 @@ struct LibraryView: View {
             }
         }
         .frame(minWidth: 520, minHeight: 360)
-        .toolbar {
-            Button("Open Video…", systemImage: "folder") { importing = true }
-            Button("Show Recordings Folder", systemImage: "folder.badge.person.crop") {
-                guard let folder = try? RecordingLibrary.directory() else { return }
-                NSWorkspace.shared.activateFileViewerSelecting([folder])
-            }
-            Button("Refresh", systemImage: "arrow.clockwise") { store.refreshLibrary() }
-        }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.movie]) { result in
-            switch result {
-            case .success(let url): openWindow(id: "editor", value: url)
-            case .failure(let error): store.error = UserMessage(text: error.localizedDescription)
-            }
-        }
         .onAppear { store.refreshLibrary() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            store.refreshLibrary()
+        }
     }
 }
 

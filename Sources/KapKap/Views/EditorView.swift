@@ -3,6 +3,7 @@ import AVKit
 
 struct EditorView: View {
     @State private var model: EditorStore
+    @State private var fullScreen = false
     private let store: CaptureStore
     @Environment(\.dismiss) private var dismiss
 
@@ -77,19 +78,11 @@ struct EditorView: View {
 
                 EditorTimelineView(model: model, playhead: time)
 
-                if model.trimmed {
-                    HStack(spacing: 4) {
-                        Image(systemName: "scissors").font(.system(size: 9, weight: .bold))
-                        Text(EditorTimelineView.timestamp(model.end - model.start, precise: false))
-                    }
-                    .font(.system(size: 11).monospacedDigit()).foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 8).frame(height: 22)
-                    .background(.white.opacity(0.1), in: Capsule())
-                    .help("Selected length")
-                    Button { model.resetTrim() } label: { Image(systemName: "arrow.uturn.backward") }
-                        .buttonStyle(GlyphButtonStyle())
-                        .help("Reset trim").accessibilityLabel("Reset trim")
-                }
+                // Always present so the timeline keeps its width while trimming.
+                Button { model.resetTrim() } label: { Image(systemName: "arrow.uturn.backward") }
+                    .buttonStyle(GlyphButtonStyle())
+                    .disabled(!model.trimmed)
+                    .help("Reset trim").accessibilityLabel("Reset trim")
                 Button { model.muted.toggle(); model.player.isMuted = model.muted } label: {
                     Image(systemName: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 }
@@ -97,10 +90,17 @@ struct EditorView: View {
                 .help(model.muted ? "Include audio" : "Mute audio")
                 .accessibilityLabel(model.muted ? "Include audio" : "Mute audio")
                 Button { NSApp.keyWindow?.toggleFullScreen(nil) } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    Image(systemName: fullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                 }
                 .buttonStyle(GlyphButtonStyle())
-                .help("Full screen").accessibilityLabel("Full screen")
+                .help(fullScreen ? "Exit full screen" : "Full screen")
+                .accessibilityLabel(fullScreen ? "Exit full screen" : "Full screen")
+                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+                    fullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+                    fullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false
+                }
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
             .background {

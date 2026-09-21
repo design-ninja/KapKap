@@ -13,11 +13,13 @@ All notable changes to KapKap are listed here. The format follows
 - Signed, notarized release builds published on GitHub.
 - System audio recording alongside the microphone. Each source gets its own track, and exports
   mix them into one.
-- A default export folder (`~/Movies/KapKap`, changeable in Settings): the save dialog opens there.
+- A default export folder (the Desktop, changeable in Settings): the save dialog opens there.
 - Open With: export straight into another app from the export menu.
 - A setting to turn off looping for GIF and APNG exports.
 - Launch at login.
 - A global, configurable shortcut for selecting a recording area (⌃⌥⌘A by default).
+- A clock next to the menu bar icon while recording.
+- Open Video and Show Recordings Folder in the File menu.
 - The recorder panel remembers where it was dragged and reopens there after a relaunch.
 - The About panel credits the author and links to the GitHub repository.
 - A changelog.
@@ -26,6 +28,11 @@ All notable changes to KapKap are listed here. The format follows
 
 - Settings are split into General, Recording and Shortcuts tabs built from standard macOS controls.
 - The ⋯ button on the recorder panel opens Settings instead of a popover.
+- The editor's frame rate is a menu: Native or a lower rate.
+- Trimming no longer resizes the timeline: the selected-length badge is gone and Reset trim
+  is always there, enabled once the recording is trimmed. The timeline handles have no shadows.
+- The full-screen button shows exit full screen while the editor is in full screen.
+- The Recordings window has no toolbar; it refreshes whenever KapKap becomes active.
 - The selection controls live in the selection overlay instead of a separate window.
 
 ### Fixed

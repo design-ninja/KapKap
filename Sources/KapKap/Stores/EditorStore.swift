@@ -16,7 +16,7 @@ final class EditorStore {
     var sourceHeight = 720
     var exportHeight: Int { max(2, Int((Double(width) * Double(sourceHeight) / Double(sourceWidth) / 2).rounded()) * 2) }
     var fps = 30
-    private var sourceFPS = 30
+    private(set) var sourceFPS = 30
     private var audioTracks = 1
     var frameRateChoices: [Int] { FrameRate.choices(upTo: sourceFPS) }
     var format = ExportFormat.mp4

@@ -105,7 +105,7 @@ private struct RecordingSettingsTab: View {
             Section {
                 DisplayPicker(store: store)
                 Picker("Frame rate", selection: $store.settings.fps) {
-                    ForEach(FrameRate.choices.reversed(), id: \.self) { Text("\($0) fps").tag($0) }
+                    ForEach(FrameRate.choices.sorted(), id: \.self) { Text("\($0) fps").tag($0) }
                 }
                 Toggle("Show cursor", isOn: $store.settings.showCursor)
                 Toggle("Highlight clicks", isOn: $store.settings.highlightClicks)

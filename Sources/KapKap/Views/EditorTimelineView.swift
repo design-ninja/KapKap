@@ -31,7 +31,7 @@ struct EditorTimelineView: View {
                         model.seekPreview(min(model.end, max(model.start, playhead + (direction == .increment ? 0.1 : -0.1))))
                     }
                 RoundedRectangle(cornerRadius: 1.5).fill(.white)
-                    .frame(width: 3, height: 20).shadow(color: .black.opacity(0.5), radius: 2)
+                    .frame(width: 3, height: 20)
                     .offset(x: min(width, max(0, playhead / total * width)) + inset - 1.5)
                     .allowsHitTesting(false)
                 handle("Trim start", time: model.start).offset(x: left - inset)
@@ -75,7 +75,6 @@ struct EditorTimelineView: View {
         RoundedRectangle(cornerRadius: 3).fill(.white)
             .frame(width: 6, height: 22)
             .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(.black.opacity(0.18)))
-            .shadow(color: .black.opacity(0.45), radius: 3, y: 1)
             .frame(width: 16, height: 28).contentShape(Rectangle())
             .accessibilityElement().accessibilityLabel(title).accessibilityValue(Self.timestamp(time))
             .help("\(title): \(Self.timestamp(time)) · Drag to trim")

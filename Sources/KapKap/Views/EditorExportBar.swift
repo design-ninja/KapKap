@@ -4,7 +4,7 @@ import CaptureCore
 struct EditorExportBar: View {
     @Bindable var model: EditorStore
     @State private var showOptions = false
-    private enum Field { case width, height, fps }
+    private enum Field { case width, height }
     @FocusState private var focus: Field?
     private var unavailable: Bool { !model.loaded || model.exporting }
 
@@ -60,22 +60,23 @@ struct EditorExportBar: View {
         .disabled(unavailable)
     }
 
+    /// A menu like the format picker: the recording's own rate first, as "Native", then lower ones.
     private var frameRateField: some View {
-        FieldSurface {
-            TextField("", value: Binding(get: { model.fps }, set: { model.fps = FrameRate.clamp($0) }),
-                      format: .number.grouping(.never))
-                .focused($focus, equals: .fps)
-                .modifier(FieldText(width: 32, focused: focus == .fps))
-                .accessibilityLabel("Export frame rate")
-            Text("fps").font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
-            ChevronMenu {
-                Picker("Frame rate", selection: $model.fps) {
-                    ForEach(model.frameRateChoices, id: \.self) { Text("\($0) fps").tag($0) }
-                }.pickerStyle(.inline)
-            }.accessibilityLabel("Frame rate presets")
+        MenuField(title: frameRateTitle(model.fps), width: 84) {
+            Picker("Frame rate", selection: $model.fps) {
+                Text("Native").tag(model.sourceFPS)
+                ForEach(model.frameRateChoices.filter { $0 < model.sourceFPS }.sorted(), id: \.self) {
+                    Text("\($0) fps").tag($0)
+                }
+            }.pickerStyle(.inline)
         }
         .help("Frames per second")
+        .accessibilityLabel("Export frame rate")
         .disabled(unavailable)
+    }
+
+    private func frameRateTitle(_ fps: Int) -> String {
+        fps == model.sourceFPS ? "Native" : "\(fps) fps"
     }
 
     private func result(_ url: URL) -> some View {

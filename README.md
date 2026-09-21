@@ -49,7 +49,6 @@ Without a certificate it falls back to ad-hoc signing, which can require grantin
 again after code changes. The first switch from ad-hoc to certificate signing may also
 require renewing the permission once.
 `--build-only` builds without opening it; `--verify` checks the launched process.
-The Codex Run action uses the same script.
 
 ## Recording
 
@@ -82,7 +81,7 @@ mute, and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a s
 Closing the editor while its own recording has never been exported asks first, and offers to keep
 it in Recent recordings or move it to the Trash; imported videos are never touched. The export
 menu can also open the result straight in another app (Open With). The save dialog starts in
-the export folder chosen in Settings → General (`~/Movies/KapKap` by default), where GIF and APNG
+the export folder chosen in Settings → General (the Desktop by default), where GIF and APNG
 looping can be turned off and KapKap can be set to launch at login. The recorder
 panel hides while an editor window is open. Recent recordings is a list with a 16:9 poster frame per row and can
 reveal a file in Finder or copy it to the clipboard.

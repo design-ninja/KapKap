@@ -17,10 +17,9 @@ struct StatusBarBridge: NSViewRepresentable {
     }
 
     @MainActor final class Coordinator: NSObject, NSMenuDelegate {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         private var configuration: StatusBarBridge
-        private var pulseTimer: Timer?
-        private var pulseDimmed = false
+        private var clock: Timer?
 
         init(_ configuration: StatusBarBridge) {
             self.configuration = configuration
@@ -40,19 +39,14 @@ struct StatusBarBridge: NSViewRepresentable {
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 17, weight: .regular))
             image?.isTemplate = true
             item.button?.image = image
-            if store.phase == .recording && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                if pulseTimer == nil {
-                    pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: true) { [weak self] _ in
-                        MainActor.assumeIsolated {
-                            guard let self else { return }
-                            self.pulseDimmed.toggle()
-                            NSAnimationContext.runAnimationGroup { context in
-                                context.duration = 0.6
-                                self.item.button?.animator().alphaValue = self.pulseDimmed ? 0.4 : 1
-                            }
-                        }
+            // While recording, the elapsed time sits next to the icon; it holds still while paused.
+            if store.active {
+                if clock == nil {
+                    clock = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                        MainActor.assumeIsolated { self?.showElapsedTime() }
                     }
                 }
+                showElapsedTime()
             } else { stopAnimation() }
             switch store.phase {
             case .paused:
@@ -65,10 +59,20 @@ struct StatusBarBridge: NSViewRepresentable {
         }
 
         func stopAnimation() {
-            pulseTimer?.invalidate()
-            pulseTimer = nil
-            pulseDimmed = false
-            item.button?.alphaValue = 1
+            clock?.invalidate()
+            clock = nil
+            item.button?.attributedTitle = NSAttributedString()
+            item.button?.imagePosition = .imageOnly
+        }
+
+        private func showElapsedTime() {
+            let seconds = Int(configuration.store.duration(at: Date()))
+            let text = String(format: " %02d:%02d", seconds / 60, seconds % 60)
+            item.button?.imagePosition = .imageLeading
+            item.button?.attributedTitle = NSAttributedString(string: text, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+            ])
+            item.button?.setAccessibilityValue("Recording, \(seconds / 60) minutes \(seconds % 60) seconds")
         }
 
         @objc private func clicked() {

@@ -5,7 +5,7 @@ enum ExportPreferences {
     private static let directoryKey = "exportDirectory"
     private static let loopKey = "loopExports"
 
-    /// Where the save dialog opens: `~/Movies/KapKap` until the user picks another folder, like Kap's Kaptures.
+    /// Where the save dialog opens: the Desktop until the user picks another folder.
     static var directory: URL {
         get {
             if let path = UserDefaults.standard.string(forKey: directoryKey) {
@@ -17,8 +17,8 @@ enum ExportPreferences {
     }
 
     static var defaultDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Movies/KapKap", isDirectory: true)
+        FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
     }
 
     /// The folder, created on first use; a folder that was deleted meanwhile falls back to the default.

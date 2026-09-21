@@ -21,6 +21,11 @@ GitHub release with a new `appcast.xml` is what ships an update. `script/release
    xcrun notarytool store-credentials KapKap --apple-id <apple-id> --team-id 75V6XX25FG
    ```
 4. **GitHub CLI** signed in with push access: `gh auth status`.
+5. **Third-party sources.** The bundled FFmpeg is GPL, so each release carries the source of its
+   GPL and LGPL parts. Download the exact versions listed in `THIRD_PARTY_NOTICES.md` (FFmpeg,
+   x264, x265, LAME, mpg123) into `dist/release/sources/`; the script packs them into
+   `KapKap-<version>-third-party-sources.tar`. Update the table and the folder whenever
+   Homebrew's versions change.
 
 ## Every release
 

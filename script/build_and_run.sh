@@ -52,6 +52,7 @@ if [[ ! -x "$APP/Contents/Resources/ffmpeg" ]]; then
     python3 "$ROOT_DIR/script/bundle_export_tools.py" "$APP"
 fi
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+rm -rf "$APP/Contents/Resources/Licenses" && cp -R "$ROOT_DIR/Resources/Licenses" "$APP/Contents/Resources/Licenses"
 if [[ "$RELEASE" == "1" ]]; then
     # Notarization wants every binary signed by us with the hardened runtime and a timestamp,
     # innermost first. Library validation also rejects Sparkle as shipped (another team's

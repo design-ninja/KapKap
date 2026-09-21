@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct KapKapApp: App {
@@ -12,6 +13,13 @@ struct KapKapApp: App {
         openWindow(id: "recorder")
         NSApp.activate(ignoringOtherApps: true)
         store.selectArea()
+    }
+
+    private func openVideo() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.movie]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        openWindow(id: "editor", value: url)
     }
 
     var body: some Scene {
@@ -36,6 +44,12 @@ struct KapKapApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("Select Recording Area") { selectArea() }
                     .keyboardShortcut(store.selectionHotKey.shortcut.keyboardShortcut).disabled(store.busy)
+                Divider()
+                Button("Open Video…") { openVideo() }.keyboardShortcut("o")
+                Button("Show Recordings Folder") {
+                    guard let folder = try? RecordingLibrary.directory() else { return }
+                    NSWorkspace.shared.activateFileViewerSelecting([folder])
+                }
             }
         }
 
