@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/icon.png" width="128" height="128" alt="KapKap icon">
+  <img src="docs/images/icon.png" width="80" height="80" alt="KapKap icon">
 </p>
 
 <h1 align="center">KapKap</h1>
