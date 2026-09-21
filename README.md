@@ -102,3 +102,9 @@ behavior require permissions and on-device testing; a successful build alone is 
 that those scenarios work.
 
 See `THIRD_PARTY_NOTICES.md` before distributing an export-enabled build.
+
+## Acknowledgements
+
+KapKap exists because of [Kap](https://github.com/wulkano/Kap) by [Wulkano](https://wulkano.com)
+and its contributors: the interface, the workflow and the idea of a small, friendly recorder
+all come from there. Thank you. Kap is MIT-licensed; its notice is in `THIRD_PARTY_NOTICES.md`.
