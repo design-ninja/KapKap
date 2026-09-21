@@ -1,4 +1,14 @@
-# KapKap
+<p align="center">
+  <img src="docs/images/icon.png" width="128" height="128" alt="KapKap icon">
+</p>
+
+<h1 align="center">KapKap</h1>
+
+<p align="center">A native macOS screen recorder for Apple Silicon, rebuilt in Swift from Kap.</p>
+
+<p align="center">
+  <img src="docs/images/recorder.png" width="540" alt="The KapKap recorder panel with its options open: display, frame rate, cursor, click highlighting and microphone">
+</p>
 
 A native Swift fork of [Kap](https://github.com/wulkano/Kap), the open-source screen recorder,
 for Apple Silicon Macs. It is a rewrite rather than a copy of Kap's code: SwiftUI interface,
