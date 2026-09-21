@@ -1,22 +1,19 @@
 import AppKit
 import SwiftUI
 
+/// Draws and edits the area on one display; the controls for it live in the recorder panel.
 struct SelectionView: View {
-    let cancel: () -> Void
-    let completion: (CGRect) -> Void
-    @State private var selection = CGRect.zero
+    @Bindable var model: SelectionModel
+    let displayID: CGDirectDisplayID
+    let screenFrame: CGRect
+    let scale: CGFloat
     @State private var pointer: CGPoint?
     @State private var dragOrigin: CGRect?
     @State private var moving = false
     @State private var resizeAnchor: CGPoint?
-    @State private var interacting = false
-    @State private var ratio = "Free"
-    @State private var locked = false
-    @State private var width = ""
-    @State private var height = ""
-    private enum Dimension: Hashable { case width, height }
-    @FocusState private var focusedDimension: Dimension?
-    private let ratios = ["16:9", "5:4", "5:3", "4:3", "3:2", "1:1", "9:16"]
+
+    private var mine: Bool { model.displayID == displayID }
+    private var selection: CGRect { mine ? model.rect : .zero }
 
     var body: some View {
         GeometryReader { geometry in
@@ -28,7 +25,8 @@ struct SelectionView: View {
                     if !selection.isEmpty {
                         context.stroke(Path(selection), with: .color(.white), lineWidth: 1)
                         for point in corners(selection) {
-                            context.fill(Path(ellipseIn: CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)), with: .color(.white))
+                            context.fill(Path(ellipseIn: CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)),
+                                         with: .color(.white))
                         }
                     }
                 }
@@ -39,8 +37,8 @@ struct SelectionView: View {
                         dragOrigin = nil
                         resizeAnchor = nil
                         pointer = nil
-                        interacting = false
-                        syncFields()
+                        model.interacting = false
+                        model.syncFields()
                         NSCursor.arrow.set()
                     })
                 .onContinuousHover { phase in
@@ -52,7 +50,7 @@ struct SelectionView: View {
                     case .ended: pointer = nil; NSCursor.arrow.set()
                     }
                 }
-                if selection.isEmpty {
+                if !model.hasArea {
                     Text("Drag to select · Esc to cancel")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.95))
@@ -63,104 +61,18 @@ struct SelectionView: View {
                         .allowsHitTesting(false)
                 }
                 if let pointer {
-                    Text(selection.isEmpty ? "\(Int(pointer.x)), \(Int(pointer.y))" : "\(Int(selection.width)) × \(Int(selection.height))")
+                    Text(selection.isEmpty ? "\(Int(pointer.x)), \(Int(pointer.y))"
+                                           : "\(Int(selection.width)) × \(Int(selection.height))")
                         .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.white)
                         .padding(.horizontal, 7).padding(.vertical, 4)
                         .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 6))
                         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.12)))
-                        .position(x: min(pointer.x + 55, geometry.size.width - 60), y: min(pointer.y + 18, geometry.size.height - 16))
+                        .position(x: min(pointer.x + 55, geometry.size.width - 60),
+                                  y: min(pointer.y + 18, geometry.size.height - 16))
                         .allowsHitTesting(false)
                 }
-                SelectionControlsWindow(hidden: interacting) {
-                    controls(bounds: geometry.size)
-                        .fixedSize()
-                        .simultaneousGesture(WindowDragGesture())
-                }.frame(width: 0, height: 0)
-
             }
         }.ignoresSafeArea()
-    }
-
-    private func controls(bounds: CGSize) -> some View {
-        HStack(spacing: 8) {
-            Button(action: cancel) { Image(systemName: "xmark") }
-                .help("Cancel selection (Esc)").accessibilityLabel("Cancel selection")
-            separator
-            MenuField(title: ratio, width: 86) {
-                Picker("Aspect ratio", selection: $ratio) {
-                    Text("Free").tag("Free")
-                    ForEach(ratios, id: \.self) { Text($0).tag($0) }
-                    if ratio == "Custom" { Text("Custom").tag("Custom") }
-                }.pickerStyle(.inline)
-            }
-            .help("Aspect ratio").accessibilityLabel("Aspect ratio")
-            .onChange(of: ratio) { _, value in
-                if value == "Free" { locked = false; return }
-                guard let aspect = aspect(value) else { return }
-                locked = true
-                resize(width: selection.width, height: selection.width / aspect, bounds: bounds)
-            }
-            Button {
-                locked.toggle()
-                if locked { ratio = "Custom" }
-            } label: { Image(systemName: locked ? "lock.fill" : "lock.open") }
-                .help(locked ? "Unlock proportions" : "Lock proportions")
-                .accessibilityLabel("Lock proportions").accessibilityValue(locked ? "On" : "Off")
-            FieldSurface {
-                TextField("W", text: $width)
-                    .focused($focusedDimension, equals: .width)
-                    .modifier(FieldText(width: 52, focused: focusedDimension == .width))
-                    .onSubmit { commitWidth(bounds) }
-                    .accessibilityLabel("Selection width in points")
-                Text("×").font(.system(size: 11)).foregroundStyle(.white.opacity(0.35))
-                TextField("H", text: $height)
-                    .focused($focusedDimension, equals: .height)
-                    .modifier(FieldText(width: 52, focused: focusedDimension == .height))
-                    .onSubmit { commitHeight(bounds) }
-                    .accessibilityLabel("Selection height in points")
-                Button {
-                    ratio = "Custom"
-                    resize(width: selection.height, height: selection.width, bounds: bounds)
-                } label: { Image(systemName: "arrow.left.arrow.right") }
-                    .buttonStyle(GlyphButtonStyle(size: 22, glyph: 11, radius: 5))
-                    .help("Swap width and height").accessibilityLabel("Swap width and height")
-            }.help("Selection size in points")
-            separator
-            Button {
-                if focusedDimension == .height { commitHeight(bounds) }
-                else { commitWidth(bounds) }
-                focusedDimension = nil
-                completion(selection)
-            } label: {
-                Circle().fill(.red).frame(width: 40, height: 40)
-                    .frame(width: 62, height: 62).contentShape(Circle())
-            }
-            .buttonStyle(RecordingButtonStyle())
-            .help("Start recording").accessibilityLabel("Start recording")
-            .disabled(selection.width < 16 || selection.height < 16)
-        }
-        .onChange(of: focusedDimension) { previous, _ in
-            if previous == .width { commitWidth(bounds) }
-            if previous == .height { commitHeight(bounds) }
-        }
-        .buttonStyle(RecorderIconButtonStyle())
-        .font(.system(size: 12))
-        .foregroundStyle(.white)
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .environment(\.colorScheme, .dark)
-        .modifier(RecorderGlass())
-        .onHover { inside in
-            if inside { pointer = nil; NSCursor.arrow.set() }
-        }
-    }
-
-    private var separator: some View {
-        Rectangle().fill(.white.opacity(0.12)).frame(width: 1, height: 28)
-    }
-
-    private func aspect(_ value: String) -> Double? {
-        let parts = value.split(separator: ":").compactMap { Double($0) }
-        return parts.count == 2 ? parts[0] / parts[1] : nil
     }
 
     private func corners(_ rect: CGRect) -> [CGPoint] {
@@ -169,59 +81,35 @@ struct SelectionView: View {
     }
 
     private func updateDrag(_ drag: DragGesture.Value, bounds: CGSize) {
-        interacting = true
+        model.interacting = true
         if dragOrigin == nil {
-            dragOrigin = selection
-            let points = corners(selection)
-            if !selection.isEmpty, let index = points.firstIndex(where: { hypot($0.x - drag.startLocation.x, $0.y - drag.startLocation.y) < 12 }) {
+            model.activate(displayID: displayID, screenFrame: screenFrame, scale: scale, bounds: bounds)
+            dragOrigin = model.rect
+            let points = corners(model.rect)
+            if !model.rect.isEmpty,
+               let index = points.firstIndex(where: { hypot($0.x - drag.startLocation.x, $0.y - drag.startLocation.y) < 12 }) {
                 resizeAnchor = points[3 - index]
             }
-            moving = resizeAnchor == nil && selection.contains(drag.startLocation)
+            moving = resizeAnchor == nil && model.rect.contains(drag.startLocation)
         }
         guard let original = dragOrigin else { return }
         if moving {
-            selection.origin = CGPoint(x: max(0, min(bounds.width - original.width, original.minX + drag.translation.width)),
-                                       y: max(0, min(bounds.height - original.height, original.minY + drag.translation.height)))
+            model.rect.origin = CGPoint(x: max(0, min(bounds.width - original.width, original.minX + drag.translation.width)),
+                                        y: max(0, min(bounds.height - original.height, original.minY + drag.translation.height)))
             NSCursor.closedHand.set()
         } else {
             let start = resizeAnchor ?? drag.startLocation
             let end = CGPoint(x: max(0, min(bounds.width, drag.location.x)), y: max(0, min(bounds.height, drag.location.y)))
             var w = abs(end.x - start.x)
             var h = abs(end.y - start.y)
-            if locked, let proportion = aspect(ratio) ?? (original.height > 0 ? original.width / original.height : nil) {
+            if model.locked, let proportion = model.aspect(model.ratio) ?? (original.height > 0 ? original.width / original.height : nil) {
                 w = min(w, h * proportion)
                 h = w / proportion
             }
-            selection = CGRect(x: end.x < start.x ? start.x - w : start.x,
-                               y: end.y < start.y ? start.y - h : start.y, width: w, height: h)
+            model.rect = CGRect(x: end.x < start.x ? start.x - w : start.x,
+                                y: end.y < start.y ? start.y - h : start.y, width: w, height: h)
             pointer = end
         }
-        syncFields()
-    }
-
-    private func resize(width: Double, height: Double, bounds: CGSize) {
-        guard width.isFinite, height.isFinite, width >= 16, height >= 16 else { syncFields(); return }
-        let scale = min(1, bounds.width / width, bounds.height / height)
-        let size = CGSize(width: (width * scale).rounded(), height: (height * scale).rounded())
-        selection = CGRect(x: max(0, min(selection.minX, bounds.width - size.width)),
-                           y: max(0, min(selection.minY, bounds.height - size.height)), width: size.width, height: size.height)
-        syncFields()
-    }
-
-    private func commitWidth(_ bounds: CGSize) {
-        guard let value = Double(width) else { syncFields(); return }
-        let h = locked && selection.width > 0 ? value * selection.height / selection.width : selection.height
-        resize(width: value, height: h, bounds: bounds)
-    }
-
-    private func commitHeight(_ bounds: CGSize) {
-        guard let value = Double(height) else { syncFields(); return }
-        let w = locked && selection.height > 0 ? value * selection.width / selection.height : selection.width
-        resize(width: w, height: value, bounds: bounds)
-    }
-
-    private func syncFields() {
-        width = String(Int(selection.width))
-        height = String(Int(selection.height))
+        model.syncFields()
     }
 }

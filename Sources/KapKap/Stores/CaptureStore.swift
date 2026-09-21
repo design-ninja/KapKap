@@ -27,6 +27,10 @@ final class CaptureStore {
     @ObservationIgnored weak var recorderWindow: NSWindow?
     @ObservationIgnored private var openEditors = 0
     @ObservationIgnored private var restoreRecorderWindow = false
+    let selectionModel = SelectionModel()
+    @ObservationIgnored private var outlinedWindow: (id: CGWindowID, processID: pid_t)?
+    @ObservationIgnored private var frontAppWatcher: NSObjectProtocol?
+    @ObservationIgnored private var recorderLevel: NSWindow.Level?
     private let recorder = ScreenRecorder()
     private let selection = SelectionOverlay()
     private let areaOverlay = RecordingOverlay()
@@ -71,27 +75,48 @@ final class CaptureStore {
     }
 
     func selectArea() {
-        guard !busy else { return }
+        guard phase == .idle else { return }
+        clearWindowOutline()
         areaOverlay.close()
+        selectionModel.reset()
         phase = .selecting
-        let recorderWindow = self.recorderWindow
-        recorderWindow?.orderOut(nil)
-        selection.present { [weak self] target in
-            guard let self else { return }
-            self.phase = .idle
-            if let target {
-                self.target = target
-                Task { await self.start() }
-            } else {
-                self.areaOverlay.close()
-                if let screen = recorderWindow?.screen ?? NSScreen.main { self.selectDisplay(screen) }
-                recorderWindow?.makeKeyAndOrderFront(nil)
-            }
+        selection.present(model: selectionModel) { [weak self] in self?.cancelSelection() }
+        // The panel stays put and swaps its controls, so it has to float above the overlay.
+        if let window = recorderWindow {
+            if recorderLevel == nil { recorderLevel = window.level }
+            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+            window.makeKeyAndOrderFront(nil)
         }
+    }
+
+    func cancelSelection() {
+        guard phase == .selecting else { return }
+        selection.close()
+        phase = .idle
+        restoreRecorderLevel()
+        areaOverlay.close()
+        if let screen = recorderWindow?.screen ?? NSScreen.main { selectDisplay(screen) }
+        recorderWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func startSelectedArea() {
+        guard phase == .selecting, let target = selectionModel.target() else { return }
+        selection.close()
+        phase = .idle
+        restoreRecorderLevel()
+        self.target = target
+        Task { await start() }
+    }
+
+    private func restoreRecorderLevel() {
+        guard let window = recorderWindow, let level = recorderLevel else { return }
+        window.level = level
+        recorderLevel = nil
     }
 
     func selectDisplay(_ screen: NSScreen) {
         guard !busy, let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
+        clearWindowOutline()
         areaOverlay.close()
         target = CaptureTarget(displayID: id.uint32Value, screenFrame: screen.frame, rect: screen.frame,
                                scale: screen.backingScaleFactor, name: screen.localizedName)
@@ -123,6 +148,7 @@ final class CaptureStore {
 
     func selectWindow(_ window: SCWindow) {
         guard !busy else { return }
+        clearWindowOutline()
         let screen = NSScreen.screens.first { screen in
             guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
             return CGDisplayBounds(number.uint32Value).intersects(window.frame)
@@ -136,6 +162,8 @@ final class CaptureStore {
                                    windowID: window.windowID,
                                    name: window.owningApplication?.applicationName ?? window.title ?? "Window")
         self.target = target
+        outlinedWindow = window.owningApplication.map { (window.windowID, $0.processID) }
+        watchFrontApp()
         // Bring the app forward and outline it, so the chosen window is both visible and obviously framed.
         if let processID = window.owningApplication?.processID {
             NSRunningApplication(processIdentifier: processID)?.activate()
@@ -146,6 +174,58 @@ final class CaptureStore {
             }
         }
         areaOverlay.show(target: target, recording: false)
+    }
+
+    /// The outline is drawn once from the window's frame, so it only makes sense while that window
+    /// is in front: it follows the app's activation instead of lingering over whatever replaced it.
+    private func watchFrontApp() {
+        guard frontAppWatcher == nil else { return }
+        frontAppWatcher = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+                MainActor.assumeIsolated {
+                    let application = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                    self?.frontAppChanged(to: application?.processIdentifier)
+                }
+            }
+    }
+
+    private func frontAppChanged(to processID: pid_t?) {
+        guard let outlined = outlinedWindow, phase == .idle else { return }
+        guard processID == outlined.processID || processID == ProcessInfo.processInfo.processIdentifier else {
+            areaOverlay.close()
+            return
+        }
+        refreshWindowOutline()
+    }
+
+    /// Redraws from the window's current frame, because it may have moved while it was away.
+    private func refreshWindowOutline() {
+        guard let outlined = outlinedWindow, let target, target.windowID == outlined.id,
+              let frame = Self.liveWindowFrame(outlined.id) else {
+            areaOverlay.close()
+            return
+        }
+        let updated = CaptureTarget(displayID: target.displayID, screenFrame: target.screenFrame,
+                                    rect: Self.screenRect(frame), scale: target.scale,
+                                    windowID: target.windowID, name: target.name)
+        self.target = updated
+        areaOverlay.show(target: updated, recording: false)
+    }
+
+    private func clearWindowOutline() {
+        outlinedWindow = nil
+        if let frontAppWatcher {
+            NSWorkspace.shared.notificationCenter.removeObserver(frontAppWatcher)
+            self.frontAppWatcher = nil
+        }
+    }
+
+    private static func liveWindowFrame(_ id: CGWindowID) -> CGRect? {
+        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], id) as? [[String: Any]])?.first,
+              (info[kCGWindowIsOnscreen as String] as? Bool) == true,
+              let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+              let frame = CGRect(dictionaryRepresentation: bounds) else { return nil }
+        return frame
     }
 
     /// ScreenCaptureKit reports window frames top-left down; AppKit panels are laid out bottom-left up.
@@ -162,19 +242,21 @@ final class CaptureStore {
         latestRecording = nil
         let recorderWindow = self.recorderWindow
         recorderWindow?.orderOut(nil)
+        // KapKap's own windows are excluded from the capture, so there is nothing to wait for:
+        // the frame goes up immediately and the stream starts underneath it.
+        if target.windowID == nil { areaOverlay.show(target: target, recording: true) }
+        else { clearWindowOutline(); areaOverlay.close() }
         do {
-            try await Task.sleep(for: .milliseconds(500))
             try await recorder.start(target: target, settings: settings)
             needsScreenAccess = false
             startedAt = Date()
             pausedAt = nil
             pauseDuration = 0
-            if target.windowID == nil { areaOverlay.show(target: target, recording: true) }
-            else { areaOverlay.close() }
             phase = .recording
             recorderWindow?.orderOut(nil)
         } catch {
             phase = .idle
+            areaOverlay.close()
             recorderWindow?.makeKeyAndOrderFront(nil)
             if CapturePermissions.isDenied(error) { needsScreenAccess = true }
             else { self.error = UserMessage(text: "Could not start recording.\n\n\(error.localizedDescription)") }

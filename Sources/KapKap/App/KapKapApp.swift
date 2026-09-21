@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct KapKapApp: App {
     @State private var store = CaptureStore()
+    @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
@@ -20,7 +21,11 @@ struct KapKapApp: App {
                 Button("About KapKap") { AppAbout.show() }
             }
             CommandGroup(replacing: .newItem) {
-                Button("Select Recording Area") { store.selectArea() }
+                Button("Select Recording Area") {
+                    // The panel carries the selection controls now, so it has to be on screen.
+                    openWindow(id: "recorder")
+                    store.selectArea()
+                }
                     .keyboardShortcut("2", modifiers: [.command, .shift]).disabled(store.busy)
             }
         }

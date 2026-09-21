@@ -10,7 +10,7 @@ struct NativeSwitch: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSSwitch {
         let control = NSSwitch()
-        control.controlSize = .regular
+        control.controlSize = .mini
         control.target = context.coordinator
         control.action = #selector(Coordinator.changed(_:))
         control.setContentHuggingPriority(.required, for: .horizontal)

@@ -45,7 +45,7 @@ struct WindowPickerView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                             }.buttonStyle(MenuRowStyle())
                         }
-                    }.padding(5)
+                    }.padding(6)
                 }.frame(height: min(300, CGFloat(store.windows.count) * 42 + 10))
             }
         }.frame(width: 290)

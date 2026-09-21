@@ -7,7 +7,7 @@ final class SelectionOverlay {
     private var panels: [NSPanel] = []
     private var escapeMonitor: Any?
 
-    func present(completion: @escaping (CaptureTarget?) -> Void) {
+    func present(model: SelectionModel, onCancel: @escaping () -> Void) {
         close()
         for screen in NSScreen.screens {
             guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { continue }
@@ -18,23 +18,15 @@ final class SelectionOverlay {
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isReleasedWhenClosed = false
             panel.acceptsMouseMovedEvents = true
-            panel.contentView = NSHostingView(rootView: SelectionView(cancel: { [weak self] in
-                self?.close()
-                completion(nil)
-            }) { [weak self] rect in
-                let global = CGRect(x: screen.frame.minX + rect.minX,
-                                    y: screen.frame.maxY - rect.maxY, width: rect.width, height: rect.height)
-                self?.close()
-                completion(CaptureTarget(displayID: number.uint32Value, screenFrame: screen.frame,
-                                         rect: global, scale: screen.backingScaleFactor, name: "Selected area"))
-            })
+            panel.contentView = NSHostingView(rootView: SelectionView(model: model, displayID: number.uint32Value,
+                                                                      screenFrame: screen.frame,
+                                                                      scale: screen.backingScaleFactor))
             panels.append(panel)
-            panel.makeKeyAndOrderFront(nil)
+            panel.orderFrontRegardless()
         }
-        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53 {
-                self?.close()
-                completion(nil)
+                onCancel()
                 return nil
             }
             return event
@@ -51,6 +43,7 @@ final class SelectionOverlay {
     }
 }
 
+/// Never key: clicking the canvas must not take hover tracking and field focus off the panel.
 private final class SelectionPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
 }

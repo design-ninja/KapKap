@@ -86,15 +86,16 @@ struct ChevronMenu<Content: View>: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.white.opacity(enabled ? 0.6 : 0.25))
                 .frame(width: 18, height: 22)
-                .background(Color.white.opacity(hovered && enabled ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 5))
                 .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .background(Color.white.opacity(hovered && enabled ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 5))
         .onHover { hovered = $0 }
     }
 }
 
 /// A value plus chevron that reads as one field rather than a platform pop-up button.
+/// The surface sits outside the menu: a borderless menu does not draw its label's background.
 struct MenuField<Content: View>: View {
     let title: String
     var width: CGFloat?
@@ -113,12 +114,12 @@ struct MenuField<Content: View>: View {
             .foregroundStyle(.white.opacity(enabled ? 1 : 0.4))
             .padding(.horizontal, 9)
             .frame(width: width, height: ControlSurface.height)
-            .background(hovered && enabled ? Color.white.opacity(0.14) : ControlSurface.fill,
-                        in: RoundedRectangle(cornerRadius: ControlSurface.radius))
-            .overlay(RoundedRectangle(cornerRadius: ControlSurface.radius).strokeBorder(ControlSurface.border))
             .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .background(hovered && enabled ? Color.white.opacity(0.14) : ControlSurface.fill,
+                    in: RoundedRectangle(cornerRadius: ControlSurface.radius))
+        .overlay(RoundedRectangle(cornerRadius: ControlSurface.radius).strokeBorder(ControlSurface.border))
         .onHover { hovered = $0 }
     }
 }
@@ -168,8 +169,9 @@ struct MenuRowStyle: ButtonStyle {
 
         var body: some View {
             label.opacity(enabled ? 1 : 0.4)
+                // Nested rounding: the row follows the popover's radius less its inset.
                 .background(Color.primary.opacity(pressed || (hovered && enabled) ? 0.08 : 0),
-                            in: RoundedRectangle(cornerRadius: 5))
+                            in: RoundedRectangle(cornerRadius: 9))
                 .onHover { hovered = $0 }
         }
     }

@@ -92,7 +92,7 @@ struct EditorExportBar: View {
             .background(Color.green.opacity(0.16), in: Capsule())
             .contentShape(Capsule())
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .help(model.copiedToClipboard ? "Copied to clipboard" : "Saved")
         .accessibilityLabel(model.copiedToClipboard ? "Copied to clipboard" : "Saved")
     }
@@ -130,7 +130,7 @@ private struct ExportAction: View {
                                                            topTrailingRadius: ControlSurface.radius))
                     .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
             .onHover { menuHovered = $0 }
             .help("Choose where the export goes")
             .accessibilityLabel("Export destination")

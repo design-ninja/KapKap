@@ -6,20 +6,26 @@ struct RecorderGlass: ViewModifier {
     @ViewBuilder func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content.background {
+                // Clear glass let bright desktops read straight through the panel.
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: cornerRadius))
+                    .glassEffect(.regular.tint(.black.opacity(0.38)),
+                                 in: RoundedRectangle(cornerRadius: cornerRadius))
                     .overlay {
                         RoundedRectangle(cornerRadius: cornerRadius)
-                            .fill(.black.opacity(0.4))
+                            .fill(.black.opacity(0.12))
                             .allowsHitTesting(false)
                     }
                     .environment(\.colorScheme, .dark)
             }
             .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(.white.opacity(0.12)))
         } else {
-            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-                .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(.white.opacity(0.12)))
+            content.background {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(.ultraThinMaterial)
+                    .overlay(RoundedRectangle(cornerRadius: cornerRadius).fill(.black.opacity(0.45)))
+            }
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(.white.opacity(0.12)))
         }
     }
 }

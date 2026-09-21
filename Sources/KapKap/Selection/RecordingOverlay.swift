@@ -23,7 +23,8 @@ final class RecordingOverlay {
             panel.level = .floating
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isReleasedWhenClosed = false
-            panel.contentView = NSHostingView(rootView: AreaShade(hole: hole, recording: recording))
+            panel.contentView = NSHostingView(rootView: AreaShade(hole: hole, recording: recording,
+                                                                  cornerRadius: Self.cornerRadius(for: target)))
             panels.append(panel)
             panel.orderFrontRegardless()
         }
@@ -33,22 +34,31 @@ final class RecordingOverlay {
         panels.forEach { $0.close() }
         panels.removeAll()
     }
+
+    /// A window outline has to follow the window's own rounding; an area is a plain rectangle.
+    private static func cornerRadius(for target: CaptureTarget) -> CGFloat {
+        guard target.windowID != nil else { return 0 }
+        if #available(macOS 26.0, *) { return 16 }
+        return 10
+    }
 }
 
 private struct AreaShade: View {
     let hole: CGRect
     let recording: Bool
+    let cornerRadius: CGFloat
 
     var body: some View {
         Canvas { context, size in
             if recording {
                 var shade = Path(CGRect(origin: .zero, size: size))
                 if !hole.isEmpty { shade.addRect(hole) }
-                context.fill(shade, with: .color(.black.opacity(0.18)), style: FillStyle(eoFill: true))
+                context.fill(shade, with: .color(.black.opacity(0.35)), style: FillStyle(eoFill: true))
             }
             guard !hole.isEmpty else { return }
             // Before recording the frame is only a marker, so it stays out of the way of the app behind it.
-            let outline = RoundedRectangle(cornerRadius: recording ? 0 : 6)
+            // The stroke sits 1.5pt outside the frame, so its radius grows by the same amount.
+            let outline = RoundedRectangle(cornerRadius: cornerRadius > 0 ? cornerRadius + 1.5 : 0)
                 .path(in: hole.insetBy(dx: -1.5, dy: -1.5))
             context.stroke(outline, with: .color(recording ? .white.opacity(0.9) : .accentColor), lineWidth: recording ? 1 : 3)
         }.ignoresSafeArea().allowsHitTesting(false)

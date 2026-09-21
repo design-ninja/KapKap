@@ -7,66 +7,66 @@ struct RecorderView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var showWindows = false
     @State private var showOptions = false
+    @FocusState private var dimension: SelectionControlsView.Dimension?
+    @Namespace private var panel
+    private var selecting: Bool { store.phase == .selecting }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Button { store.selectArea() } label: { Image(systemName: "viewfinder") }
-                    .help("Select area (⌘⇧2)").keyboardShortcut("2", modifiers: [.command, .shift])
-                    .disabled(store.busy)
-
-                Button { showWindows.toggle() } label: {
-                    Image(systemName: "macwindow")
-                        .foregroundStyle(.white)
-                }
-                .help("Choose a window").accessibilityLabel("Choose a window")
-                .disabled(store.busy)
-                .popover(isPresented: $showWindows, arrowEdge: .bottom) {
-                    WindowPickerView(store: store)
-                        .foregroundStyle(.primary)
-                        .buttonStyle(.automatic)
-                }
-
-                Button {
-                    Task { if store.active { await store.stop() } else { await store.start() } }
-                } label: {
-                    ZStack {
-                        if store.phase == .starting || store.phase == .stopping {
-                            ProgressView().controlSize(.small)
-                        } else if store.active {
-                            RoundedRectangle(cornerRadius: 4).fill(.red).frame(width: 24, height: 24)
-                        } else { Circle().fill(.red).frame(width: 40, height: 40) }
-                    }
-                    .frame(width: 62, height: 62)
-                    .contentShape(Circle())
-                }
-                .buttonStyle(RecordingButtonStyle())
-                .disabled(store.changingPause || store.phase == .starting || store.phase == .stopping || store.phase == .selecting || store.target == nil)
-                .help(store.active ? "Stop recording (\(store.recordingHotKey.shortcut.label))" : "Record (\(store.recordingHotKey.shortcut.label))")
-                .accessibilityLabel(store.active ? "Stop recording" : "Start recording")
-
-                if store.active {
-                    Button { Task { await store.togglePause() } } label: {
-                        Image(systemName: store.phase == .paused ? "play.fill" : "pause.fill")
-                    }.help(store.phase == .paused ? "Resume" : "Pause").disabled(store.changingPause)
+                if selecting {
+                    SelectionControlsView(store: store, model: store.selectionModel,
+                                          focus: $dimension, side: .leading)
                 } else {
-                    Button { store.refreshLibrary(); openWindow(id: "recordings") } label: {
-                        Image(systemName: "clock.arrow.circlepath")
-                    }.help("Recent recordings")
+                    Button { store.selectArea() } label: { Image(systemName: "viewfinder") }
+                        .help("Select area (⌘⇧2)").keyboardShortcut("2", modifiers: [.command, .shift])
+                        .disabled(store.busy)
+
+                    Button { focusPanel(); showWindows.toggle() } label: {
+                        Image(systemName: "macwindow")
+                            .foregroundStyle(.white)
+                    }
+                    .help("Choose a window").accessibilityLabel("Choose a window")
+                    .disabled(store.busy)
+                    .popover(isPresented: $showWindows, arrowEdge: .bottom) {
+                        WindowPickerView(store: store)
+                            .foregroundStyle(.primary)
+                            .buttonStyle(.automatic)
+                    }
                 }
-                Button { showOptions.toggle() } label: {
-                    Image(systemName: "ellipsis")
-                        .foregroundStyle(.white)
+
+                RecordButton(store: store, action: record)
+                    .matchedGeometryEffect(id: "record", in: panel, properties: .position)
+                    .disabled(recordDisabled)
+                    .help(recordHelp)
+                    .accessibilityLabel(store.active ? "Stop recording" : "Start recording")
+
+                if selecting {
+                    SelectionControlsView(store: store, model: store.selectionModel,
+                                          focus: $dimension, side: .trailing)
+                } else {
+                    if store.active {
+                        Button { Task { await store.togglePause() } } label: {
+                            Image(systemName: store.phase == .paused ? "play.fill" : "pause.fill")
+                        }.help(store.phase == .paused ? "Resume" : "Pause").disabled(store.changingPause)
+                    } else {
+                        Button { store.refreshLibrary(); openWindow(id: "recordings") } label: {
+                            Image(systemName: "clock.arrow.circlepath")
+                        }.help("Recent recordings")
+                    }
+                    Button { focusPanel(); showOptions.toggle() } label: {
+                        Image(systemName: "ellipsis")
+                            .foregroundStyle(.white)
+                    }
+                    .help(showOptions ? "Hide recording details" : "Show recording details")
+                    .accessibilityLabel(showOptions ? "Hide recording details" : "Show recording details")
+                    // A popover keeps the panel one size and lets AppKit place the details on screen,
+                    // wherever the panel floats — inline details ran off the edge near the Dock.
+                    .popover(isPresented: $showOptions, arrowEdge: .bottom) { options }
                 }
-                .help(showOptions ? "Hide recording details" : "Show recording details")
-                .accessibilityLabel(showOptions ? "Hide recording details" : "Show recording details")
-                // A popover keeps the panel one size and lets AppKit place the details on screen,
-                // wherever the panel floats — inline details ran off the edge near the Dock.
-                .popover(isPresented: $showOptions, arrowEdge: .bottom) { options }
             }
             .buttonStyle(RecorderIconButtonStyle())
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 12).padding(.vertical, 10)
+            .padding(.horizontal, 12).padding(.vertical, 5)
             if store.needsScreenAccess {
                 Divider()
                 VStack(alignment: .leading, spacing: 10) {
@@ -77,10 +77,13 @@ struct RecorderView: View {
                         Button("Open Settings") { CapturePermissions.openSettings() }
                         Button("Reopen KapKap") { CapturePermissions.relaunch() }
                     }
-                }.padding(16)
+                }.padding(16).frame(width: 308, alignment: .leading)
             }
         }
-        .background(RecorderWindowChrome(store: store))
+        .background(RecorderWindowChrome(store: store, hidden: store.selectionModel.interacting))
+        // A popover over an unfocused panel renders its controls inactive, so take focus first.
+        .onChange(of: showOptions) { _, shown in if shown { focusPanel() } }
+        .onChange(of: showWindows) { _, shown in if shown { focusPanel() } }
         .background(StatusBarBridge(store: store, phase: store.phase, showRecorder: {
             openWindow(id: "recorder"); NSApp.activate(ignoringOtherApps: true)
         }, showLibrary: {
@@ -88,8 +91,9 @@ struct RecorderView: View {
         }, showSettings: {
             openSettings(); NSApp.activate(ignoringOtherApps: true)
         }))
-        .frame(width: 320)
-        .fixedSize(horizontal: false, vertical: true)
+        // Both states size to their own controls, so the edge padding reads the same in each.
+        .fixedSize(horizontal: true, vertical: true)
+        .animation(.snappy(duration: 0.22), value: selecting)
         .modifier(RecorderGlass())
         .contentShape(Rectangle())
         .modifier(RecorderWindowDrag(store: store))
@@ -105,6 +109,33 @@ struct RecorderView: View {
                 store.latestRecording = nil
             }
         }
+    }
+
+    private func focusPanel() {
+        NSApp.activate(ignoringOtherApps: true)
+        store.recorderWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func record() {
+        guard selecting else {
+            Task { if store.active { await store.stop() } else { await store.start() } }
+            return
+        }
+        if dimension == .height { store.selectionModel.commitHeight() }
+        else if dimension == .width { store.selectionModel.commitWidth() }
+        dimension = nil
+        store.startSelectedArea()
+    }
+
+    private var recordDisabled: Bool {
+        if selecting { return !store.selectionModel.ready }
+        return store.changingPause || store.phase == .starting || store.phase == .stopping || store.target == nil
+    }
+
+    private var recordHelp: String {
+        if selecting { return "Start recording the selected area" }
+        return store.active ? "Stop recording (\(store.recordingHotKey.shortcut.label))"
+                            : "Record (\(store.recordingHotKey.shortcut.label))"
     }
 
     private var options: some View {
