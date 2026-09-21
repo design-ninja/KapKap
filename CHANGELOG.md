@@ -8,15 +8,28 @@ All notable changes to KapKap are listed here. The format follows
 
 ### Added
 
+- System audio recording alongside the microphone. Each source gets its own track, and exports
+  mix them into one.
+- A default export folder (`~/Movies/KapKap`, changeable in Settings): the save dialog opens there.
+- Open With: export straight into another app from the export menu, like Kap's built-in action.
+- A setting to turn off looping for GIF and APNG exports.
+- Launch at login.
+- A global, configurable shortcut for selecting a recording area (⌃⌥⌘A by default).
 - The recorder panel remembers where it was dragged and reopens there after a relaunch.
 - The About panel credits the author and links to the GitHub repository.
 - A changelog, and a README section listing what Kap does that KapKap does not.
 
 ### Changed
 
+- Settings are split into General, Recording and Shortcuts tabs built from standard macOS controls.
+- The ⋯ button on the recorder panel opens Settings instead of a popover.
 - The selection controls live in the selection overlay instead of a separate window.
-- The switches in the recorder options are smaller, and the About and Quit rows drop the app name and line up
-  with the options above them.
+
+### Fixed
+
+- A recording exported in an earlier session is no longer offered for discarding when macOS
+  reopens its editor after a relaunch.
+- VoiceOver can open rows in Recent recordings, and the panel's buttons have readable names.
 
 ## [0.1.0] - 2026-09-20
 
