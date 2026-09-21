@@ -14,7 +14,7 @@ All notable changes to KapKap are listed here. The format follows
 - System audio recording alongside the microphone. Each source gets its own track, and exports
   mix them into one.
 - A default export folder (`~/Movies/KapKap`, changeable in Settings): the save dialog opens there.
-- Open With: export straight into another app from the export menu, like Kap's built-in action.
+- Open With: export straight into another app from the export menu.
 - A setting to turn off looping for GIF and APNG exports.
 - Launch at login.
 - A global, configurable shortcut for selecting a recording area (⌃⌥⌘A by default).
