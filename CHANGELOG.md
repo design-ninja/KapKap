@@ -8,6 +8,9 @@ All notable changes to KapKap are listed here. The format follows
 
 ### Added
 
+- Automatic updates through Sparkle: KapKap checks GitHub Releases for a signed update and
+  installs it when you agree. Check manually from the KapKap menu, or turn checks off in Settings.
+- Signed, notarized release builds published on GitHub.
 - System audio recording alongside the microphone. Each source gets its own track, and exports
   mix them into one.
 - A default export folder (`~/Movies/KapKap`, changeable in Settings): the save dialog opens there.
@@ -17,7 +20,7 @@ All notable changes to KapKap are listed here. The format follows
 - A global, configurable shortcut for selecting a recording area (⌃⌥⌘A by default).
 - The recorder panel remembers where it was dragged and reopens there after a relaunch.
 - The About panel credits the author and links to the GitHub repository.
-- A changelog, and a README section listing what Kap does that KapKap does not.
+- A changelog.
 
 ### Changed
 

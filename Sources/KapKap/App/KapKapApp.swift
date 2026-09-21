@@ -30,6 +30,8 @@ struct KapKapApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About KapKap") { AppAbout.show() }
+                Button("Check for Updates…") { store.updater.checkForUpdates() }
+                    .disabled(!store.updater.canCheckForUpdates)
             }
             CommandGroup(replacing: .newItem) {
                 Button("Select Recording Area") { selectArea() }

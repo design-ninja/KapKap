@@ -4,41 +4,29 @@
 
 <h1 align="center">KapKap</h1>
 
-<p align="center">A native macOS screen recorder for Apple Silicon, rebuilt in Swift from Kap.</p>
+<p align="center">A native macOS screen recorder for Apple Silicon.</p>
+
+<p align="center"><a href="https://github.com/design-ninja/KapKap/releases/latest"><b>Download the latest release</b></a></p>
 
 <p align="center">
   <img src="docs/images/panel-dunes.webp" width="100%" alt="The KapKap recorder panel: select an area, choose a window, record, recent recordings and settings">
 </p>
 
-A native Swift fork of [Kap](https://github.com/wulkano/Kap), the open-source screen recorder,
-for Apple Silicon Macs. It is a rewrite rather than a copy of Kap's code: SwiftUI interface,
-ScreenCaptureKit capture and AVFoundation recording instead of Electron and Node.js.
+Record an area, a window or a whole display, trim the result and export it as MP4, GIF, APNG,
+WebM, HEVC or AV1. KapKap is written in Swift with SwiftUI, ScreenCaptureKit and AVFoundation,
+lives in the menu bar and keeps itself up to date.
 
-## Why this fork
+- System audio and microphone, cursor and click highlighting, 15 to 60 fps
+- Global shortcuts to start or stop a recording and to select an area
+- An editor with trimming, resizing, frame rate and mute
+- Save, copy to the clipboard or open the export straight in another app
 
-Kap is no longer maintained. Its last release, 3.6.0, shipped on 27 October 2022, and nothing
-but a CI configuration change has landed since; more than 250 issues are open, and users have been
-[asking whether the project is abandoned](https://github.com/wulkano/Kap/issues/1265).
-It does not work properly on current macOS: on macOS 27 it
-[crashes](https://github.com/wulkano/Kap/issues/1293) and hits
-[unhandled promise rejections](https://github.com/wulkano/Kap/issues/1294), and people report it
-[failing on recent Apple Silicon Macs](https://github.com/wulkano/Kap/issues/1290).
+## Install
 
-Rather than patch an aging Electron app, KapKap rebuilds the recorder natively on the frameworks
-macOS provides for this today, so it keeps working as the system moves on.
-
-## Not at feature parity with Kap
-
-KapKap is not a full fork: it covers recording, trimming and exporting, and leaves out much of
-what Kap does around them. Missing compared with Kap:
-
-- **Plugins.** There is no plugin system, so none of Kap's share plugins (Dropbox, Giphy,
-  Streamable, Imgur and others), editing plugins or recording plugins (camera overlay, hiding
-  desktop icons, Do Not Disturb) are available. Exports can be saved, copied or opened in another app.
-- **Lossy GIF compression.** Kap shrinks GIFs with gifsicle; KapKap exports them losslessly only.
-- **Exports window.** No list of running and finished exports with progress.
-- **Intel Macs.** Apple Silicon only.
-- **Migration.** Kap's settings and recording history are not imported.
+Download `KapKap-<version>.zip` from the [latest release](https://github.com/design-ninja/KapKap/releases/latest),
+unzip it and move KapKap to Applications. Builds are signed with Developer ID and notarized by Apple.
+KapKap checks GitHub for new versions and installs them when you agree; turn automatic checks off
+in Settings → General. It requires macOS 15 or later on Apple Silicon.
 
 ## Development
 
@@ -112,25 +100,25 @@ reveal a file in Finder or copy it to the clipboard.
 SwiftUI owns all screens and controls. AppKit is used narrowly for desktop overlay
 placement, app lifecycle, and macOS file dialogs / Finder integration.
 
-## Scope and verification
+## Tests
 
-This is the first native implementation, not a feature-complete or pixel-identical Kap port.
-Tests cover display coordinates, pause timing, static-screen duration, empty recordings, and
-encode/decode round trips for all six export formats using a generated video/audio fixture.
-Build the app before testing so the bundled export executable is available.
+`swift test` covers display coordinates, pause timing, static-screen duration, empty recordings,
+shortcut registration, and encode/decode round trips for all six export formats, looping and
+mixing of two audio tracks, using generated fixtures. Build the app first so the bundled export
+executable is available. Real screen, system audio and microphone capture and multi-monitor
+behavior need permissions and on-device testing; a successful build alone is not evidence that
+those scenarios work.
 
-Full visual parity, editable selection handles/aspect ratios, original Kap settings/history migration, crash recovery, and signed public
-distribution remain follow-up work. Real screen/microphone capture and multi-monitor
-behavior require permissions and on-device testing; a successful build alone is not evidence
-that those scenarios work.
+## Releases
 
-See `THIRD_PARTY_NOTICES.md` before distributing an export-enabled build.
+`./script/release.sh <version>` builds, signs, notarizes and publishes a release that installed
+copies pick up through [Sparkle](https://sparkle-project.org). See [docs/RELEASE.md](docs/RELEASE.md).
+Third-party licenses, including the bundled FFmpeg, are listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Acknowledgements
 
-KapKap exists because of [Kap](https://github.com/wulkano/Kap) by [Wulkano](https://wulkano.com)
-and its contributors: the interface, the workflow and the idea of a small, friendly recorder
-all come from there. Thank you. Kap is MIT-licensed; its notice is in `THIRD_PARTY_NOTICES.md`.
+Thank you to [Kap](https://github.com/wulkano/Kap) by [Wulkano](https://wulkano.com) and its
+contributors: KapKap is inspired by it. Kap is MIT-licensed; its notice is in `THIRD_PARTY_NOTICES.md`.
 
 The README screenshot's background is [Deserto de Huacachina](https://unsplash.com/photos/brown-sand-dunes-under-white-sky-during-daytime-GeReAnOMiZ8)
 by [Ze Paulo](https://unsplash.com/@euzepaulo) on Unsplash.

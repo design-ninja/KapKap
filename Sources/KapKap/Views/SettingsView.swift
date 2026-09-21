@@ -8,7 +8,7 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            Tab("General", systemImage: "gearshape") { GeneralSettings() }
+            Tab("General", systemImage: "gearshape") { GeneralSettings(updater: store.updater) }
             Tab("Recording", systemImage: "record.circle") { RecordingSettingsTab(store: store) }
             Tab("Shortcuts", systemImage: "keyboard") { ShortcutSettings(store: store) }
         }
@@ -20,6 +20,7 @@ struct SettingsView: View {
 }
 
 private struct GeneralSettings: View {
+    @Bindable var updater: Updater
     @State private var launchAtLogin = LaunchAtLogin()
     @State private var exportDirectory = ExportPreferences.directory
     @State private var loopExports = ExportPreferences.loop
@@ -38,6 +39,20 @@ private struct GeneralSettings: View {
                     Text(error).foregroundStyle(.red)
                 }
             }
+            Section {
+                Toggle("Check for updates automatically", isOn: $updater.checksAutomatically)
+                LabeledContent("Version \(Self.version)") {
+                    Button("Check Now") { updater.checkForUpdates() }
+                        .disabled(!updater.canCheckForUpdates)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                if !updater.isAvailable {
+                    Text("Updates are delivered to release builds from GitHub. This development build does not check.")
+                }
+            }
+            .disabled(!updater.isAvailable)
             Section {
                 LabeledContent("Save exports to") {
                     HStack {
@@ -59,6 +74,10 @@ private struct GeneralSettings: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             launchAtLogin.refresh()
         }
+    }
+
+    private static var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 
     private func chooseDirectory() {

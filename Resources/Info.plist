@@ -14,4 +14,7 @@
     <key>NSMicrophoneUsageDescription</key><string>KapKap records your microphone when you enable audio for a screen recording.</string>
     <key>NSScreenCaptureUsageDescription</key><string>KapKap records the screen area or window you select.</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>SUFeedURL</key><string>https://github.com/design-ninja/KapKap/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>SPARKLE_PUBLIC_KEY</string>
+    <key>SUEnableAutomaticChecks</key><true/>
 </dict></plist>

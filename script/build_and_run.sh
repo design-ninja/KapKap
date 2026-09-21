@@ -32,19 +32,43 @@ fi
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
 SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
 # Preserve the deployment floor while linking against the installed SDK appearance.
-swift build --arch arm64 --sdk "$SDK_PATH" \
+# Release builds (script/release.sh) set these; everyday builds keep the debug defaults.
+CONFIGURATION="${KAPKAP_CONFIGURATION:-debug}"
+RELEASE="${KAPKAP_RELEASE:-0}"
+swift build --arch arm64 -c "$CONFIGURATION" --sdk "$SDK_PATH" \
     -Xlinker -platform_version -Xlinker macos -Xlinker 15.0 -Xlinker "$SDK_VERSION"
-BUILD_DIR="$(swift build --arch arm64 --show-bin-path)"
-APP="$ROOT_DIR/dist/KapKap.app"
+BUILD_DIR="$(swift build --arch arm64 -c "$CONFIGURATION" --show-bin-path)"
+APP="${KAPKAP_APP:-$ROOT_DIR/dist/KapKap.app}"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BUILD_DIR/KapKap" "$APP/Contents/MacOS/KapKap"
+# Sparkle (updates) ships as a framework; a bundled app looks for it in Contents/Frameworks.
+mkdir -p "$APP/Contents/Frameworks"
+rm -rf "$APP/Contents/Frameworks/Sparkle.framework"
+ditto "$BUILD_DIR/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/KapKap" 2>/dev/null || true
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
-cp "$ROOT_DIR/Resources/Info.plist" "$APP/Contents/Info.plist"
+cp "${KAPKAP_INFO_PLIST:-$ROOT_DIR/Resources/Info.plist}" "$APP/Contents/Info.plist"
 if [[ ! -x "$APP/Contents/Resources/ffmpeg" ]]; then
     python3 "$ROOT_DIR/script/bundle_export_tools.py" "$APP"
 fi
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
-codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$APP"
+if [[ "$RELEASE" == "1" ]]; then
+    # Notarization wants every binary signed by us with the hardened runtime and a timestamp,
+    # innermost first. Library validation also rejects Sparkle as shipped (another team's
+    # signature), so it is re-signed in the order Sparkle's documentation gives.
+    sign() { codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$@"; }
+    for library in "$APP"/Contents/Frameworks/*.dylib; do sign "$library"; done
+    sign "$APP/Contents/Resources/ffmpeg"
+    SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+    sign "$SPARKLE/XPCServices/Installer.xpc"
+    sign --preserve-metadata=entitlements "$SPARKLE/XPCServices/Downloader.xpc"
+    sign "$SPARKLE/Autoupdate"
+    sign "$SPARKLE/Updater.app"
+    sign "$APP/Contents/Frameworks/Sparkle.framework"
+    sign --entitlements "$ROOT_DIR/Resources/KapKap.entitlements" "$APP"
+else
+    codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$APP"
+fi
 codesign --verify --deep --strict "$APP"
 file "$APP/Contents/MacOS/KapKap"
 
