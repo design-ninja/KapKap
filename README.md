@@ -4,6 +4,19 @@ A native Swift fork of [Kap](https://github.com/wulkano/Kap), the open-source sc
 for Apple Silicon Macs. It is a rewrite rather than a copy of Kap's code: SwiftUI interface,
 ScreenCaptureKit capture and AVFoundation recording instead of Electron and Node.js.
 
+## Why this fork
+
+Kap is no longer maintained. Its last release, 3.6.0, shipped on 27 October 2022, and nothing
+but a CI configuration change has landed since; more than 250 issues are open, and users have been
+[asking whether the project is abandoned](https://github.com/wulkano/Kap/issues/1265).
+It does not work properly on current macOS: on macOS 27 it
+[crashes](https://github.com/wulkano/Kap/issues/1293) and hits
+[unhandled promise rejections](https://github.com/wulkano/Kap/issues/1294), and people report it
+[failing on recent Apple Silicon Macs](https://github.com/wulkano/Kap/issues/1290).
+
+Rather than patch an aging Electron app, KapKap rebuilds the recorder natively on the frameworks
+macOS provides for this today, so it keeps working as the system moves on.
+
 ## Not at feature parity with Kap
 
 KapKap is not a full fork: it covers recording, trimming and exporting, and leaves out much of
