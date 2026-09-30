@@ -8,6 +8,9 @@ struct EditorView: View {
     private let store: CaptureStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    /// The controls fade in on hover, but VoiceOver and keyboard users never hover, so they always see them.
+    private var controlsVisible: Bool { previewHovered || voiceOver || NSApp.isFullKeyboardAccessEnabled }
 
     init(url: URL, store: CaptureStore) {
         _model = State(initialValue: EditorStore(url: url))
@@ -20,10 +23,9 @@ struct EditorView: View {
                 RecordingPlayerView(player: model.player)
                 if !model.loaded { ProgressView().controlSize(.small) }
                 playbackControls.padding(.horizontal, 14).padding(.bottom, 14)
-                    .opacity(previewHovered ? 1 : 0)
-                    .allowsHitTesting(previewHovered)
-                    .accessibilityHidden(!previewHovered)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: previewHovered)
+                    .opacity(controlsVisible ? 1 : 0)
+                    .allowsHitTesting(controlsVisible)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: controlsVisible)
             }
             .frame(minHeight: 260, maxHeight: .infinity)
             .background(.black)
@@ -64,9 +66,10 @@ struct EditorView: View {
     }
 
     private var playbackControls: some View {
-        // Every display frame while playing keeps the playhead gliding; a paused preview only needs
-        // to follow seeks.
-        TimelineView(.animation(minimumInterval: model.playing ? nil : 0.1)) { _ in
+        // Every display frame while playing keeps the playhead gliding; a paused preview stops the clock
+        // and redraws when a seek lands.
+        TimelineView(.animation(minimumInterval: nil, paused: !model.playing)) { _ in
+            let _ = model.positionRevision
             let time = model.player.currentTime().seconds
             HStack(spacing: 10) {
                 Button { model.togglePlayback() } label: {

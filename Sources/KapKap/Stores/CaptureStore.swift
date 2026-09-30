@@ -5,6 +5,8 @@ import ScreenCaptureKit
 struct UserMessage: Identifiable {
     let id = UUID()
     let text: String
+    /// A System Settings pane that fixes the problem, offered next to OK.
+    var settingsURL: URL? = nil
 }
 
 @MainActor @Observable
@@ -16,7 +18,11 @@ final class CaptureStore {
     let recordingHotKey = RecordingHotKey()
     let selectionHotKey = RecordingHotKey(preferenceKey: "selectionShortcut", id: 2, standard: .selection)
     let updater = Updater()
-    var error: UserMessage?
+    /// Shown by the recorder panel, which is often hidden (while recording, or behind an editor),
+    /// so a new message brings it forward.
+    var error: UserMessage? {
+        didSet { if error != nil { revealRecorder() } }
+    }
     var recent: [URL] = []
     var latestRecording: URL?
     var windows: [SCWindow] = []
@@ -25,13 +31,15 @@ final class CaptureStore {
     var pausedAt: Date?
     var pauseDuration: TimeInterval = 0
     var changingPause = false
-    var needsScreenAccess = false
     @ObservationIgnored weak var recorderWindow: NSWindow?
     @ObservationIgnored private var openEditors = 0
     @ObservationIgnored private var restoreRecorderWindow = false
     let selectionModel = SelectionModel()
     @ObservationIgnored private var outlinedWindow: (id: CGWindowID, processID: pid_t)?
     @ObservationIgnored private var frontAppWatcher: NSObjectProtocol?
+    /// Why ScreenCaptureKit ended the current recording on its own, reported once it is saved.
+    @ObservationIgnored private var interruption: Error?
+    @ObservationIgnored private let defaults: UserDefaults
     private let recorder = ScreenRecorder()
     private let selection = SelectionOverlay()
     private let areaOverlay = RecordingOverlay()
@@ -41,24 +49,31 @@ final class CaptureStore {
     var active: Bool { phase == .recording || phase == .paused }
     var busy: Bool { phase != .idle && phase != .selecting }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         recorder.onFailure = { [weak self] error in
-            guard let self else { return }
-            self.error = UserMessage(text: error.localizedDescription)
-            if self.active { Task { await self.stop() } }
+            guard let self, self.active else { return }
+            self.interruption = error
+            Task { await self.stop() }
         }
-        let builtIn = NSScreen.screens.first { screen in
-            guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            return CGDisplayIsBuiltin(id.uint32Value) != 0
+        if let area = lastArea {
+            target = area
+        } else if let screen = NSScreen.screens.first(where: { $0.displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false }) ?? NSScreen.main {
+            selectDisplay(screen)
         }
-        if let screen = builtIn ?? NSScreen.main { selectDisplay(screen) }
         refreshLibrary()
     }
 
+    private func revealRecorder() {
+        NSApp.activate(ignoringOtherApps: true)
+        recorderWindow?.makeKeyAndOrderFront(nil)
+    }
+
     /// The editor is the focus while it is open; the recorder panel would only float on top of it.
+    /// A message waiting on the panel keeps it in front.
     func editorOpened() {
         openEditors += 1
-        guard openEditors == 1 else { return }
+        guard openEditors == 1, error == nil else { return }
         restoreRecorderWindow = recorderWindow?.isVisible ?? false
         recorderWindow?.orderOut(nil)
     }
@@ -102,24 +117,38 @@ final class CaptureStore {
         selection.close()
         phase = .idle
         self.target = target
+        if let identifier = SavedCaptureArea.identifier(for: target.displayID) {
+            SavedCaptureArea(displayIdentifier: identifier, selection: target.rect, screen: target.screenFrame).save(defaults: defaults)
+        }
         Task { await start() }
     }
 
-    func selectDisplay(_ screen: NSScreen) {
-        guard !busy, let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
+    /// The last area drawn, while its display is connected and still holds it.
+    var lastArea: CaptureTarget? { SavedCaptureArea.load(defaults: defaults)?.target() }
+
+    func selectLastArea() {
+        guard !busy, let area = lastArea else { return }
         clearWindowOutline()
         areaOverlay.close()
-        target = CaptureTarget(displayID: id.uint32Value, screenFrame: screen.frame, rect: screen.frame,
+        target = area
+    }
+
+    func selectDisplay(_ screen: NSScreen) {
+        guard !busy, let id = screen.displayID else { return }
+        clearWindowOutline()
+        areaOverlay.close()
+        target = CaptureTarget(displayID: id, screenFrame: screen.frame, rect: screen.frame,
                                scale: screen.backingScaleFactor, name: screen.localizedName)
     }
 
-    func loadWindows() async {
-        guard !busy else { return }
+    /// Returns false when Screen Recording is not allowed; macOS asks for it with its own dialog.
+    @discardableResult
+    func loadWindows() async -> Bool {
+        guard !busy else { return true }
         isLoadingWindows = true
         defer { isLoadingWindows = false }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-            needsScreenAccess = false
             var seen = Set<String>()
             // Helper panels and background agents are noise here: one entry per app, front to back.
             windows = content.windows.filter { window in
@@ -130,10 +159,12 @@ final class CaptureStore {
                       window.frame.width > 120, window.frame.height > 80 else { return false }
                 return seen.insert(application.bundleIdentifier).inserted
             }
+            return true
         } catch {
             windows = []
-            if CapturePermissions.isDenied(error) { needsScreenAccess = true }
-            else { self.error = UserMessage(text: error.localizedDescription) }
+            if CapturePermissions.isDenied(error) { return false }
+            self.error = UserMessage(text: error.localizedDescription)
+            return true
         }
     }
 
@@ -141,14 +172,13 @@ final class CaptureStore {
         guard !busy else { return }
         clearWindowOutline()
         let screen = NSScreen.screens.first { screen in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            return CGDisplayBounds(number.uint32Value).intersects(window.frame)
+            screen.displayID.map { CGDisplayBounds($0).intersects(window.frame) } ?? false
         } ?? NSScreen.main
-        guard let screen, let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
+        guard let screen, let displayID = screen.displayID else { return }
         areaOverlay.close()
         // Picking the current window again clears the choice and falls back to the display behind it.
         guard target?.windowID != window.windowID else { return selectDisplay(screen) }
-        let target = CaptureTarget(displayID: number.uint32Value, screenFrame: screen.frame,
+        let target = CaptureTarget(displayID: displayID, screenFrame: screen.frame,
                                    rect: Self.screenRect(window.frame), scale: screen.backingScaleFactor,
                                    windowID: window.windowID,
                                    name: window.owningApplication?.applicationName ?? window.title ?? "Window")
@@ -218,8 +248,13 @@ final class CaptureStore {
     }
 
     func start() async {
-        guard phase == .idle else { return }
-        guard let target else { return }
+        guard phase == .idle, let chosen = target else { return }
+        let target: CaptureTarget
+        do { target = try Self.current(chosen) } catch {
+            self.error = UserMessage(text: error.localizedDescription)
+            return
+        }
+        self.target = target
         phase = .starting
         settings.save()
         latestRecording = nil
@@ -233,7 +268,7 @@ final class CaptureStore {
             if settings.microphone { await playStartSound() }
             try await recorder.start(target: target, settings: settings)
             if !settings.microphone { await playStartSound() }
-            needsScreenAccess = false
+            interruption = nil
             startedAt = Date()
             pausedAt = nil
             pauseDuration = 0
@@ -243,9 +278,35 @@ final class CaptureStore {
             phase = .idle
             areaOverlay.close()
             recorderWindow?.makeKeyAndOrderFront(nil)
-            if CapturePermissions.isDenied(error) { needsScreenAccess = true }
-            else { self.error = UserMessage(text: "Could not start recording.\n\n\(error.localizedDescription)") }
+            // macOS answers a missing Screen Recording permission with its own dialog.
+            guard !CapturePermissions.isDenied(error) else { return }
+            self.error = UserMessage(text: "Could not start recording.\n\n\(error.localizedDescription)",
+                                     settingsURL: (error as? CaptureError)?.settingsURL)
         }
+    }
+
+    /// Display geometry can change after a source was chosen (a new resolution, a rearranged or
+    /// disconnected display), so the target is measured again right before recording.
+    static func current(_ target: CaptureTarget, screens: [NSScreen] = NSScreen.screens) throws -> CaptureTarget {
+        guard target.windowID == nil else { return target }
+        guard let screen = screens.first(where: { $0.displayID == target.displayID }) else {
+            throw CaptureError.message("The selected display is no longer connected. Select an area again.")
+        }
+        return try current(target, screenFrame: screen.frame, scale: screen.backingScaleFactor, name: screen.localizedName)
+    }
+
+    static func current(_ target: CaptureTarget, screenFrame: CGRect, scale: CGFloat, name: String) throws -> CaptureTarget {
+        if target.rect == target.screenFrame {
+            return CaptureTarget(displayID: target.displayID, screenFrame: screenFrame, rect: screenFrame,
+                                 scale: scale, name: name)
+        }
+        guard screenFrame.size == target.screenFrame.size else {
+            throw CaptureError.message("The display's resolution changed. Select the area again.")
+        }
+        let rect = target.rect.offsetBy(dx: screenFrame.minX - target.screenFrame.minX,
+                                        dy: screenFrame.minY - target.screenFrame.minY)
+        return CaptureTarget(displayID: target.displayID, screenFrame: screenFrame, rect: rect,
+                             scale: scale, name: target.name)
     }
 
     /// The start chime never lands in the recording. System audio leaves out KapKap's own sounds, but a
@@ -269,15 +330,33 @@ final class CaptureStore {
     }
 
     func stop() async {
-        guard active, !changingPause else { return }
+        guard active else { return }
+        // A pause or resume in flight finishes first; a stop is never dropped.
+        while changingPause { try? await Task.sleep(for: .milliseconds(20)) }
+        guard active else { return }
         areaOverlay.close()
         phase = .stopping
+        let interruption = self.interruption
+        self.interruption = nil
         do {
             latestRecording = try await recorder.stop()
-            refreshLibrary()
+            if let interruption {
+                error = UserMessage(text: "Recording stopped: \(interruption.localizedDescription)\n\nEverything recorded until then was saved.")
+            }
         } catch { self.error = UserMessage(text: "Could not finish recording.\n\n\(error.localizedDescription)") }
+        refreshLibrary()
         phase = .idle
         startedAt = nil
+    }
+
+    /// Saves a running recording before KapKap quits, logs out or shuts down.
+    func finishForTermination() async {
+        var waited = 0
+        while phase == .starting || phase == .stopping || changingPause, waited < 200 {
+            try? await Task.sleep(for: .milliseconds(50))
+            waited += 1
+        }
+        if active { await stop() }
     }
 
     func duration(at date: Date) -> TimeInterval {

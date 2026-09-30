@@ -37,10 +37,12 @@ Open `Package.swift` in Xcode, or use:
 swift test
 ```
 
-Requirements: Apple Silicon, Xcode 27 / Swift 6.4 for this development build,
-and an ARM Homebrew FFmpeg installation (`brew install ffmpeg`). The build script
-copies FFmpeg and its linked libraries into the app and checks every binary for ARM
-support. The resulting local `.app` does not need Homebrew at runtime.
+Requirements: Apple Silicon, Xcode 27 / Swift 6.4 for this development build, and the tools that
+build the bundled FFmpeg: `brew install pkg-config cmake meson ninja`. On the first run
+`script/build_ffmpeg.sh` downloads the pinned sources of FFmpeg and its codecs (x264, x265, libvpx,
+SVT-AV1, Opus, dav1d), checks their SHA-256, and builds one static ARM executable for macOS 15 with
+only what exports need, in a few minutes; later builds reuse it from `.build/ffmpeg`. The app does
+not need Homebrew at runtime.
 
 The app is staged at `dist/KapKap.app`. The build uses the sole Apple Development
 identity in the keychain, or an explicit `KAPKAP_SIGNING_IDENTITY`. A stable certificate
@@ -57,30 +59,38 @@ require renewing the permission once.
    on the panel). With system audio and the microphone both on, each gets its own track and
    exports mix them. Recording and export share one set of
    frame rates — 60, 30, 24 and 15 fps; the editor never offers more than the recording holds.
-3. Press Record; a short sound marks the start and is kept out of the recording. Grant Screen Recording and, optionally, Microphone access when macOS asks.
+3. Press Record; a short sound marks the start and is kept out of the recording. Grant Screen Recording and, optionally, Microphone access when macOS asks; macOS shows its own dialog for Screen Recording.
 4. Pause/resume or stop from the recorder window or menu bar.
 5. The recording is saved automatically and opens in the editor.
 
 Two global shortcuts work from any app: start/stop recording (**⌃⇧R**, R for Record) and select a recording
 area (**⌃⇧A**, A for Area). Change either in Settings → Shortcuts by clicking its button and pressing
-Command or Control with a letter or number; Escape cancels.
+Command or Control with a letter or number; Escape cancels. The label always shows the key's
+Latin letter, whatever keyboard layout is active.
 The choice persists across launches. A registration conflict keeps the previous choice;
 shortcuts handled locally by another app cannot always be detected.
-Left-clicking the menu-bar icon opens the recorder panel; while recording it stops. Right-click opens the menu. The source menu also
-lets you return to the last area after choosing a display or window. A disconnected display
-or a saved area outside the current display bounds requires selecting a new area.
+Left-clicking the menu-bar icon opens the recorder panel; while recording it stops. Right-click opens the menu. The source menu in
+Settings → Recording also lets you return to the last area after choosing a display or window. The
+display is measured again when recording starts: a whole display follows a new resolution, while a
+disconnected display or an area on a display whose resolution changed requires selecting a new area.
 
 The window picker lists one entry per app with an on-screen window, front to back. Choosing one
 activates that app and outlines the window that will be captured; the recorder panel stays on top.
 While an area is being drawn or resized, the selection panel fades out of the way.
 
 Originals are stored in `~/Library/Application Support/KapKap/Recordings`.
-Unfinished files have a leading dot and are retained for diagnosis rather than silently deleted.
+Recordings are written in two-second fragments. When ScreenCaptureKit ends a recording on its own
+(from the system's screen-recording controls, or when a display disconnects), everything recorded
+until then is saved and KapKap says why it stopped. If KapKap quits unexpectedly, the unfinished file
+(its name starts with a dot) is recovered into Recent recordings at the next launch; a file that cannot
+play keeps its dot for diagnosis. Quitting, logging out or shutting down during a recording saves it first.
 Exports preserve the original file. The editor supports trimming, resolution, frame rate,
 mute, quality (smaller file, balanced or best; see [docs/export-quality.md](docs/export-quality.md)), and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
 Closing the editor while its own recording has never been exported asks first, and offers to keep
 it in Recent recordings or move it to the Trash; imported videos are never touched. The export
-menu can also open the result straight in another app (Open With). The save dialog starts in
+menu can also open the result straight in another app (Open With). Copies made for the clipboard or
+Open With live in `~/Library/Application Support/KapKap`: a new copy replaces the previous clipboard
+export, and the rest are removed after a day. The save dialog starts in
 the export folder chosen in Settings → General (the Desktop by default), where GIF and APNG
 looping can be turned off and KapKap can be set to launch at login. The recorder
 panel hides while an editor window is open. Recent recordings is a list with a 16:9 poster frame per row and can
@@ -102,9 +112,12 @@ placement, app lifecycle, and macOS file dialogs / Finder integration.
 ## Tests
 
 `swift test` covers display coordinates, pause timing, static-screen duration, empty recordings,
-shortcut registration, and encode/decode round trips for all six export formats, looping,
-mixing of two audio tracks and the size order of the three export qualities, using generated fixtures. Build the app first so the bundled export
-executable is available. Real screen, system audio and microphone capture and multi-monitor
+recordings interrupted by the system, recovery of unfinished files, restoring the last area,
+shortcut registration and labels, clean-up of clipboard exports, and encode/decode round trips for
+all six export formats, looping, mixing of two audio tracks, the size order of the three export
+qualities, export progress and cancellation, using generated fixtures. Build the app first so the
+bundled export executable is available; `KAPKAP_REQUIRE_EXPORT_TOOLS=1 swift test` fails instead of
+skipping the export tests when it is not. Real screen, system audio and microphone capture and multi-monitor
 behavior need permissions and on-device testing; a successful build alone is not evidence that
 those scenarios work.
 

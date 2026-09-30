@@ -9,10 +9,20 @@ final class ExportTests: XCTestCase {
         }
     }
 
+    func testTimesNeverUseExponentNotation() throws {
+        let url = URL(fileURLWithPath: "/tmp/unused.mp4")
+        // Three nudges forward and three back leave a trim handle at 2.8e-17, not at zero.
+        let start = 0.1 + 0.1 + 0.1 - 0.1 - 0.1 - 0.1
+        XCTAssertTrue(String(start).contains("e-"))
+        let arguments = try ExportOptions(format: .mp4, start: start, end: 1, width: 100, fps: 30, muted: true)
+            .arguments(input: url, output: url)
+        XCTAssertFalse(arguments.contains { $0.contains("e-") }, "\(arguments)")
+        XCTAssertEqual(arguments[arguments.firstIndex(of: "-ss")! + 1], "0.000000")
+        XCTAssertEqual(arguments[arguments.firstIndex(of: "-t")! + 1], "1.000000")
+    }
+
     func testSmallerQualityMakesSmallerVideoFiles() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let ffmpeg = root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")
-        guard FileManager.default.isExecutableFile(atPath: ffmpeg.path) else { throw XCTSkip("Build the app bundle before running export integration tests.") }
+        let ffmpeg = try bundledFFmpeg()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-quality-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -32,9 +42,7 @@ final class ExportTests: XCTestCase {
     }
 
     func testEveryFormatEncodesAndDecodesWithBundledARMTools() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let ffmpeg = root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")
-        guard FileManager.default.isExecutableFile(atPath: ffmpeg.path) else { throw XCTSkip("Build the app bundle before running export integration tests.") }
+        let ffmpeg = try bundledFFmpeg()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-export-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -56,9 +64,7 @@ final class ExportTests: XCTestCase {
     }
 
     func testLoopSettingControlsGIFAndAPNGPlayback() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let ffmpeg = root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")
-        guard FileManager.default.isExecutableFile(atPath: ffmpeg.path) else { throw XCTSkip("Build the app bundle before running export integration tests.") }
+        let ffmpeg = try bundledFFmpeg()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-loop-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -85,9 +91,7 @@ final class ExportTests: XCTestCase {
     }
 
     func testTwoAudioTracksAreMixedIntoOne() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let ffmpeg = root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")
-        guard FileManager.default.isExecutableFile(atPath: ffmpeg.path) else { throw XCTSkip("Build the app bundle before running export integration tests.") }
+        let ffmpeg = try bundledFFmpeg()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-mix-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -132,4 +136,21 @@ final class ExportTests: XCTestCase {
         }
         return text
     }
+}
+
+/// The FFmpeg bundled by script/build_and_run.sh, or the one KAPKAP_FFMPEG names. Set
+/// KAPKAP_REQUIRE_EXPORT_TOOLS=1 to fail instead of skip when it is missing, so a green run cannot
+/// hide untested exports.
+func bundledFFmpeg() throws -> URL {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let ffmpeg = ProcessInfo.processInfo.environment["KAPKAP_FFMPEG"].map(URL.init(fileURLWithPath:))
+        ?? root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")
+    guard FileManager.default.isExecutableFile(atPath: ffmpeg.path) else {
+        let message = "Build the app bundle (script/build_and_run.sh --build-only) before running export integration tests."
+        if ProcessInfo.processInfo.environment["KAPKAP_REQUIRE_EXPORT_TOOLS"] == "1" {
+            throw NSError(domain: "KapKap.ExportTest", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        throw XCTSkip(message)
+    }
+    return ffmpeg
 }

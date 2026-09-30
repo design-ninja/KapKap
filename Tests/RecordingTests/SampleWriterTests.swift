@@ -32,6 +32,33 @@ final class SampleWriterTests: XCTestCase {
         XCTAssertEqual(size, CGSize(width: 160, height: 120))
     }
 
+    /// Recordings are written in fragments; one that spans several of them, with the last image held
+    /// through a quiet stretch before stop, must still finalize.
+    func testRecordingLongerThanAFragmentFinalizes() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-fragments-\(UUID().uuidString).mp4")
+        defer { try? FileManager.default.removeItem(at: file) }
+        var settings = RecordingSettings()
+        settings.microphone = false
+        settings.systemAudio = false
+        settings.highlightClicks = false
+        settings.fps = 30
+        let sink = try SampleWriter(url: file, width: 160, height: 120, settings: settings) { error in
+            XCTFail(error.localizedDescription)
+        }
+        let origin = CMTime(seconds: 100, preferredTimescale: 60_000)
+        // A static screen sends no frames for a while, in the middle and again before stop.
+        for frame in Array(0..<90) + Array(240..<330) {
+            let sample = try testCaptureFrame(at: origin + CMTime(value: CMTimeValue(frame), timescale: 30))
+            sink.queue.sync { sink.consume(sample, type: .screen) }
+        }
+        try await sink.finish(at: origin + CMTime(seconds: 16, preferredTimescale: 600))
+        let asset = AVURLAsset(url: file)
+        let duration = try await asset.load(.duration)
+        XCTAssertEqual(duration.seconds, 16, accuracy: 0.05)
+        let frame = try await AVAssetImageGenerator(asset: asset).image(at: CMTime(seconds: 15.5, preferredTimescale: 600))
+        XCTAssertEqual(frame.image.width, 160)
+    }
+
     func testEmptyRecordingFailsInsteadOfReturningAnUnplayableFile() async throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-empty-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: file) }

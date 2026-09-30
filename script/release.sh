@@ -47,6 +47,10 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 
 # 1. Version and changelog. The build number only ever grows; Sparkle compares it.
 PLIST="$ROOT_DIR/Resources/Info.plist"
+# Until the release commit exists, any exit puts both files back, so a failed run can simply be repeated.
+COMMITTED=0
+restore() { [[ "$COMMITTED" == "1" ]] || git checkout -- "$PLIST" CHANGELOG.md; }
+trap restore EXIT
 BUILD=$(( $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST") + 1 ))
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $BUILD" "$PLIST"
 python3 - "$VERSION" "$(date +%Y-%m-%d)" "$REPO" "$OUT/notes.md" <<'EOF'
@@ -77,11 +81,18 @@ KAPKAP_CONFIGURATION=release KAPKAP_RELEASE=1 KAPKAP_APP="$APP" KAPKAP_INFO_PLIS
     KAPKAP_SIGNING_IDENTITY="$IDENTITY" ./script/build_and_run.sh --build-only
 
 ARCHIVE="$OUT/KapKap-$VERSION.zip"
-# The GPL and LGPL parts of the bundled FFmpeg ship with their source (THIRD_PARTY_NOTICES.md).
 SOURCES_DIR="$ROOT_DIR/dist/release/sources"
 SOURCES="$OUT/KapKap-$VERSION-third-party-sources.tar"
-ls "$SOURCES_DIR"/ffmpeg-*.tar.* >/dev/null 2>&1 || fail "put the FFmpeg, x264, x265, LAME and mpg123 sources in $SOURCES_DIR"
-tar -cf "$SOURCES" -C "$SOURCES_DIR" .
+# The shipped sources are exactly the archives the bundled FFmpeg was built from (the GPL requires
+# FFmpeg's, x264's and x265's), and THIRD_PARTY_NOTICES.md names each of them.
+SOURCE_ARCHIVES=()
+while IFS= read -r archive; do
+    name="$(basename "$archive")"
+    grep -qF "$name" THIRD_PARTY_NOTICES.md || fail "THIRD_PARTY_NOTICES.md does not list $name"
+    SOURCE_ARCHIVES+=("$name")
+done < <(./script/build_ffmpeg.sh --sources)
+[[ ${#SOURCE_ARCHIVES[@]} -gt 0 ]] || fail "no FFmpeg source archives"
+tar -cf "$SOURCES" -C "$SOURCES_DIR" "${SOURCE_ARCHIVES[@]}"
 if [[ "$DRY_RUN" == "0" ]]; then
     # 3. Notarize, then staple so the app opens offline, then archive the stapled app.
     ditto -c -k --keepParent "$APP" "$OUT/notarize.zip"
@@ -120,13 +131,13 @@ mkdir -p "$FEED" && cp "$ARCHIVE" "$OUT/KapKap-$VERSION.html" "$FEED/"
 cp "$FEED/appcast.xml" "$OUT/appcast.xml"
 
 if [[ "$DRY_RUN" == "1" ]]; then
-    git checkout -- "$PLIST" CHANGELOG.md
     echo "Dry run complete: $OUT (version and changelog changes reverted)"
     exit 0
 fi
 
 # 5. Publish: the commit and tag first, then the release that makes the feed live.
 git commit -m "chore: release $VERSION" -- "$PLIST" CHANGELOG.md
+COMMITTED=1
 git tag -a "$TAG" -m "KapKap $VERSION"
 git push origin HEAD "$TAG"
 gh release create "$TAG" "$ARCHIVE" "$OUT/appcast.xml" "$SOURCES" --repo "$REPO" \

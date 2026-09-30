@@ -43,7 +43,25 @@ final class RecordingHotKeyTests: XCTestCase {
         }
         XCTAssertNil(RecordingShortcut(event: try event([])))
         XCTAssertNil(RecordingShortcut(event: try event([.shift, .option])))
-        XCTAssertEqual(RecordingShortcut(event: try event([.control, .shift])), .standard)
+        let shortcut = try XCTUnwrap(RecordingShortcut(event: try event([.control, .shift])))
+        XCTAssertEqual(shortcut.keyCode, RecordingShortcut.standard.keyCode)
+        XCTAssertEqual(shortcut.modifiers, RecordingShortcut.standard.modifiers)
+        XCTAssertEqual(shortcut.key, RecordingShortcut.character(for: UInt16(kVK_ANSI_R))?.uppercased())
+    }
+
+    /// The label comes from the key, not from the typed character: Shift+1 is "1", and a Cyrillic "к" is R.
+    func testShortcutLabelIgnoresShiftAndTheActiveLayout() throws {
+        func event(_ characters: String, keyCode: Int) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.control, .shift],
+                timestamp: 0, windowNumber: 0, context: nil, characters: characters,
+                charactersIgnoringModifiers: characters, isARepeat: false, keyCode: UInt16(keyCode)))
+        }
+        guard let one = RecordingShortcut.character(for: UInt16(kVK_ANSI_1)), one == "1",
+              RecordingShortcut.character(for: UInt16(kVK_ANSI_R)) == "r" else { throw XCTSkip("Needs a QWERTY-like Latin layout.") }
+        XCTAssertEqual(RecordingShortcut(event: try event("!", keyCode: kVK_ANSI_1))?.key, "1")
+        XCTAssertEqual(RecordingShortcut(event: try event("к", keyCode: kVK_ANSI_R))?.key, "R")
+        let saved = RecordingShortcut(keyCode: UInt32(kVK_ANSI_R), modifiers: UInt32(controlKey | shiftKey), key: "К")
+        XCTAssertEqual(saved.relabeled.key, "R")
     }
 
     @MainActor func testSecondShortcutKeepsItsOwnChoiceAndCannotTakeTheFirstOnesKeys() throws {

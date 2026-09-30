@@ -25,7 +25,7 @@ final class ScreenRecorder {
         guard stream == nil else { throw CaptureError.message("A recording is already running.") }
         if settings.microphone {
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
-            guard granted else { throw CaptureError.message("Allow microphone access for KapKap in System Settings → Privacy & Security → Microphone.") }
+            guard granted else { throw CaptureError.microphoneDenied }
         }
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         guard let display = content.displays.first(where: { $0.displayID == target.displayID }) else {
@@ -69,7 +69,7 @@ final class ScreenRecorder {
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.colorSpaceName = CGColorSpace.sRGB
         let output = try RecordingLibrary.newURL()
-        let pending = output.deletingLastPathComponent().appendingPathComponent(".\(output.lastPathComponent)")
+        let pending = output.deletingLastPathComponent().appendingPathComponent(RecordingLibrary.pendingName(for: output))
         let sink = try SampleWriter(url: pending, width: Int(size.width), height: Int(size.height), settings: settings,
                                     clickScale: CGFloat(filter.pointPixelScale)) { [weak self] error in
             Task { @MainActor in self?.onFailure?(error) }
@@ -100,7 +100,12 @@ final class ScreenRecorder {
         let stopTime = CMClockGetTime(CMClockGetHostTimeClock())
         var stopError: Error?
         do { try await stream.stopCapture() } catch { stopError = error }
-        try await sink.finish(at: stopTime)
+        do { try await sink.finish(at: stopTime) } catch {
+            // The file is written in fragments, so whatever reached the disk may still play.
+            guard await RecordingLibrary.recover(temporary, as: destination) else { throw error }
+            NSLog("Recording could not be finalized; its playable part was recovered: %@", error.localizedDescription)
+            return destination
+        }
         try FileManager.default.moveItem(at: temporary, to: destination)
         if let stopError { NSLog("Capture ended with an error; recording was saved: %@", stopError.localizedDescription) }
         return destination

@@ -64,18 +64,6 @@ struct RecorderView: View {
             }
             .buttonStyle(RecorderIconButtonStyle())
             .padding(.horizontal, 12).padding(.vertical, 5)
-            if store.needsScreenAccess {
-                Divider()
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Allow Screen Recording", systemImage: "lock.shield").fontWeight(.medium)
-                    Text("Enable KapKap in Privacy & Security, then reopen the app to start recording.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Open Settings") { CapturePermissions.openSettings() }
-                        Button("Reopen KapKap") { CapturePermissions.relaunch() }
-                    }
-                }.padding(16).frame(width: 308, alignment: .leading)
-            }
         }
         .background(RecorderWindowChrome(store: store, hidden: store.selectionModel.interacting))
         // A popover over an unfocused panel renders its controls inactive, so take focus first.
@@ -96,8 +84,8 @@ struct RecorderView: View {
         .ignoresSafeArea(.container, edges: .top)
         .alert("KapKap", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("OK", role: .cancel) { store.error = nil }
-            Button("Privacy Settings") {
-                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+            if let settings = store.error?.settingsURL {
+                Button("Open System Settings") { NSWorkspace.shared.open(settings) }
             }
         } message: { Text(store.error?.text ?? "") }
         .task(id: store.latestRecording) {

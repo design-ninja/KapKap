@@ -10,7 +10,7 @@ final class SelectionOverlay {
     func present(model: SelectionModel, onCancel: @escaping () -> Void) {
         close()
         for screen in NSScreen.screens {
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { continue }
+            guard let displayID = screen.displayID else { continue }
             let panel = SelectionPanel(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
             panel.isOpaque = false
             panel.backgroundColor = .clear
@@ -18,7 +18,7 @@ final class SelectionOverlay {
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isReleasedWhenClosed = false
             panel.acceptsMouseMovedEvents = true
-            panel.contentView = NSHostingView(rootView: SelectionView(model: model, displayID: number.uint32Value,
+            panel.contentView = NSHostingView(rootView: SelectionView(model: model, displayID: displayID,
                                                                       screenFrame: screen.frame,
                                                                       scale: screen.backingScaleFactor))
             panels.append(panel)

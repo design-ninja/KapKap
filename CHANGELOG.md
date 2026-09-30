@@ -6,6 +6,40 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Recording offers the last area drawn next to the displays.
+- Unfinished recordings left by a crash are recovered into Recent recordings at the next launch.
+
+### Changed
+
+- Recordings are written in two-second fragments, so an unexpected quit keeps what was recorded.
+- Quitting, logging out or shutting down during a recording saves it instead of being refused.
+- Copies made for the clipboard or Open With no longer pile up: a new copy replaces the last one,
+  and the rest are removed after a day.
+- The editor's playback and trim controls stay visible for VoiceOver and keyboard navigation.
+- FFmpeg is built from source for exports only: one static executable instead of 18 Homebrew
+  libraries, without network access, and the app is smaller.
+
+### Removed
+
+- The Screen Recording prompt inside the recorder panel. macOS shows its own dialog.
+
+### Fixed
+
+- Exports work on macOS 15 and later: the bundled FFmpeg came from Homebrew builds that required
+  macOS 26.
+- A recording stopped by the system (its screen-recording controls, a disconnected display) is
+  saved up to that moment instead of being deleted.
+- The last selected area is restored on launch, as documented.
+- Errors show up even while the recorder panel is hidden, and only permission errors offer
+  System Settings.
+- A whole-display recording follows a changed resolution instead of capturing the old size.
+- Export no longer fails after the trim start is nudged back to zero.
+- Shortcuts with Shift and a number can be recorded, and labels show the Latin letter on
+  Cyrillic keyboard layouts.
+- A paused editor no longer redraws its controls ten times a second.
+
 ## [0.3.0] - 2026-09-30
 
 ### Added

@@ -26,7 +26,7 @@ final class RecordingHotKey {
         self.id = id
         self.standard = standard
         shortcut = defaults.data(forKey: preferenceKey)
-            .flatMap { try? JSONDecoder().decode(RecordingShortcut.self, from: $0) } ?? standard
+            .flatMap { try? JSONDecoder().decode(RecordingShortcut.self, from: $0) }?.relabeled ?? standard
     }
 
     @discardableResult func register() -> OSStatus {

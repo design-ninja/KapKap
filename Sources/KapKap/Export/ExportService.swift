@@ -9,7 +9,7 @@ enum ExportService {
     }
 
     /// `progress` receives the finished share, 0 to 1, from the encoder's own progress report.
-    static func export(input: URL, destination: URL, options: ExportOptions,
+    static func export(input: URL, destination: URL, options: ExportOptions, executable: URL? = executable,
                        progress: (@Sendable (Double) -> Void)? = nil) async throws {
         let working = destination.deletingLastPathComponent().appendingPathComponent(".KapKap-\(UUID().uuidString).\(options.format.fileExtension)")
         defer { try? FileManager.default.removeItem(at: working) }

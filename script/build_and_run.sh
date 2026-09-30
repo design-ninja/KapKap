@@ -48,17 +48,19 @@ ditto "$BUILD_DIR/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/KapKap" 2>/dev/null || true
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "${KAPKAP_INFO_PLIST:-$ROOT_DIR/Resources/Info.plist}" "$APP/Contents/Info.plist"
-if [[ ! -x "$APP/Contents/Resources/ffmpeg" ]]; then
-    python3 "$ROOT_DIR/script/bundle_export_tools.py" "$APP"
-fi
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 rm -rf "$APP/Contents/Resources/Licenses" && cp -R "$ROOT_DIR/Resources/Licenses" "$APP/Contents/Resources/Licenses"
+# Builds FFmpeg from source the first time (a few minutes), then reuses it; adds its license texts.
+python3 "$ROOT_DIR/script/bundle_export_tools.py" "$APP"
 if [[ "$RELEASE" == "1" ]]; then
     # Notarization wants every binary signed by us with the hardened runtime and a timestamp,
     # innermost first. Library validation also rejects Sparkle as shipped (another team's
     # signature), so it is re-signed in the order Sparkle's documentation gives.
     sign() { codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$@"; }
-    for library in "$APP"/Contents/Frameworks/*.dylib; do sign "$library"; done
+    # Symbols stay in a dSYM beside the app for crash reports; the shipped binary drops them (about 2 MB).
+    rm -rf "$APP.dSYM"
+    dsymutil "$APP/Contents/MacOS/KapKap" -o "$APP.dSYM" || echo "warning: no dSYM for KapKap" >&2
+    strip -rSTx "$APP/Contents/MacOS/KapKap"
     sign "$APP/Contents/Resources/ffmpeg"
     SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
     sign "$SPARKLE/XPCServices/Installer.xpc"

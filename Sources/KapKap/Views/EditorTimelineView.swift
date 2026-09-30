@@ -59,7 +59,7 @@ struct EditorTimelineView: View {
                         model.seekPreview(model.end)
                     }
                 if let time = hoverTime {
-                    TimelineThumbnail(url: model.url, time: time, selectionDuration: model.end - model.start)
+                    TimelineThumbnail(generator: model.thumbnails, time: time, selectionDuration: model.end - model.start)
                         .position(x: min(max(84, time / total * width + inset), max(84, geometry.size.width - 84)), y: -62)
                         .allowsHitTesting(false)
                 }
@@ -92,7 +92,7 @@ struct EditorTimelineView: View {
 }
 
 private struct TimelineThumbnail: View {
-    let url: URL
+    let generator: AVAssetImageGenerator
     let time: Double
     let selectionDuration: Double
     @State private var image: NSImage?
@@ -113,9 +113,6 @@ private struct TimelineThumbnail: View {
         .task(id: Int(time * 10)) {
             do {
                 try await Task.sleep(for: .milliseconds(80))
-                let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
-                generator.appliesPreferredTrackTransform = true
-                generator.maximumSize = CGSize(width: 304, height: 172)
                 let frame = try await generator.image(at: CMTime(seconds: time, preferredTimescale: 600))
                 try Task.checkCancellation()
                 image = NSImage(cgImage: frame.image, size: .zero)

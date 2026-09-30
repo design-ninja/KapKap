@@ -98,6 +98,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureCloseCommand(in: NSApp.mainMenu)
+        ScratchExports.pruneAtLaunch()
+        Task { @MainActor in
+            let recovered = await RecordingLibrary.recoverPending()
+            guard !recovered.isEmpty, let store = self.store else { return }
+            store.refreshLibrary()
+            store.error = UserMessage(text: recovered.count == 1
+                ? "An unfinished recording from an earlier session was recovered. It is in Recent recordings."
+                : "\(recovered.count) unfinished recordings from earlier sessions were recovered. They are in Recent recordings.")
+        }
 
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
             NSApp.applicationIconImage = NSImage(contentsOf: url)
@@ -141,9 +150,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    /// Quitting, logging out or shutting down saves a running recording first.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let store, store.busy else { return .terminateNow }
-        store.error = UserMessage(text: "Stop the current recording before quitting KapKap.")
-        return .terminateCancel
+        Task { @MainActor in
+            await store.finishForTermination()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }

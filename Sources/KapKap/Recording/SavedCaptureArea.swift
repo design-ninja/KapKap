@@ -21,10 +21,10 @@ struct SavedCaptureArea: Codable {
 
     @MainActor func target() -> CaptureTarget? {
         for screen in NSScreen.screens {
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
-                  let identifier = Self.identifier(for: number.uint32Value),
+            guard let displayID = screen.displayID,
+                  let identifier = Self.identifier(for: displayID),
                   let rect = rect(on: identifier, screen: screen.frame) else { continue }
-            return CaptureTarget(displayID: number.uint32Value, screenFrame: screen.frame,
+            return CaptureTarget(displayID: displayID, screenFrame: screen.frame,
                                  rect: rect, scale: screen.backingScaleFactor, name: "Selected area")
         }
         return nil
