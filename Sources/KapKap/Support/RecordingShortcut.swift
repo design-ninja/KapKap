@@ -8,10 +8,10 @@ struct RecordingShortcut: Codable, Equatable {
     let key: String
 
     static let standard = RecordingShortcut(keyCode: UInt32(kVK_ANSI_R),
-        modifiers: UInt32(controlKey | optionKey | cmdKey), key: "R")
+        modifiers: UInt32(controlKey | shiftKey), key: "R")
     /// Opens the area selector from any app, like Kap's cropper shortcut.
     static let selection = RecordingShortcut(keyCode: UInt32(kVK_ANSI_A),
-        modifiers: UInt32(controlKey | optionKey | cmdKey), key: "A")
+        modifiers: UInt32(controlKey | shiftKey), key: "A")
 
     var label: String {
         [(controlKey, "⌃"), (optionKey, "⌥"), (shiftKey, "⇧"), (cmdKey, "⌘")]

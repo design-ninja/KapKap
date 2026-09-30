@@ -3,10 +3,21 @@ import AppKit
 @MainActor
 enum AppAbout {
     static func show() {
+        NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationIcon: NSApp.applicationIconImage as Any,
             .credits: credits
         ])
+        if let content = NSApp.keyWindow?.contentView { styleLinks(in: content) }
+    }
+
+    private static let linkColor = NSColor(srgbRed: 0.55, green: 0.08, blue: 0.1, alpha: 1)
+
+    private static func styleLinks(in view: NSView) {
+        if let text = view as? NSTextView {
+            text.linkTextAttributes = [.foregroundColor: linkColor, .underlineStyle: 0]
+        }
+        for child in view.subviews { styleLinks(in: child) }
     }
 
     private static var credits: NSAttributedString {
@@ -29,6 +40,8 @@ enum AppAbout {
                              base: [NSAttributedString.Key: Any]) -> NSAttributedString {
         var attributes = base
         attributes[.link] = URL(string: url)!
+        attributes[.foregroundColor] = linkColor
+        attributes[.underlineStyle] = 0
         return NSAttributedString(string: title, attributes: attributes)
     }
 }

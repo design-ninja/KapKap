@@ -135,8 +135,9 @@ struct StatusBarBridge: NSViewRepresentable {
             menu.addItem(.separator())
             add("Recent Recordings", action: configuration.showLibrary)
             add("Settings…", enabled: !store.busy, action: configuration.showSettings)
+            add("About KapKap", action: AppAbout.show)
             menu.addItem(.separator())
-            add("Quit KapKap", enabled: !store.busy) { NSApp.terminate(nil) }
+            add("Quit", enabled: !store.busy) { NSApp.terminate(nil) }
             item.menu = menu
             item.button?.performClick(nil)
         }

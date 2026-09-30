@@ -44,7 +44,7 @@ struct RecorderWindowChrome: NSViewRepresentable {
         private func restoreOrigin() {
             guard let window, let origin = RecorderWindowPosition.load() else { return }
             let frame = NSRect(origin: origin, size: window.frame.size)
-            guard NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) else { return }
+            guard NSScreen.screens.contains(where: { $0.frame.intersects(frame) }) else { return }
             window.setFrameOrigin(origin)
             keepOnScreen()
         }
@@ -64,9 +64,7 @@ struct RecorderWindowChrome: NSViewRepresentable {
         /// The panel floats wherever it was dropped, so anything that grows it has to stay reachable.
         private func keepOnScreen() {
             guard let window, let screen = window.screen ?? NSScreen.main else { return }
-            // No inset: a panel parked against the Dock or menu bar must not be nudged inward
-            // just because swapping controls resized it.
-            let visible = screen.visibleFrame
+            let visible = screen.frame
             let frame = window.frame
             var origin = frame.origin
             origin.x = min(max(origin.x, visible.minX), visible.maxX - frame.width)
@@ -82,8 +80,12 @@ struct RecorderWindowChrome: NSViewRepresentable {
             if let panel = window as? NSPanel {
                 panel.styleMask.remove(.nonactivatingPanel)
                 panel.becomesKeyOnlyIfNeeded = false
+                panel.hidesOnDeactivate = false
             }
+            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+            window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary]
             window.styleMask.insert([.titled, .fullSizeContentView, .closable])
+            UnconstrainedWindow.install(on: window)
             // Changing the style mask restores the system background, so clear it afterwards.
             window.isOpaque = false
             window.backgroundColor = .clear
@@ -127,5 +129,39 @@ enum RecorderWindowPosition {
 
     static func load() -> CGPoint? {
         UserDefaults.standard.string(forKey: key).map(NSPointFromString)
+    }
+}
+
+/// AppKit keeps titled windows under the menu bar and clear of the Dock. The panel floats above both,
+/// so its window class is swapped for one that only keeps it inside the physical screen.
+enum UnconstrainedWindow {
+    private static var subclasses: [ObjectIdentifier: AnyClass] = [:]
+
+    static func install(on window: NSWindow) {
+        let base: AnyClass = type(of: window)
+        guard !NSStringFromClass(base).hasPrefix("KapKapUnconstrained_") else { return }
+        let name = "KapKapUnconstrained_\(NSStringFromClass(base))"
+        if let subclass = subclasses[ObjectIdentifier(base)] ?? makeSubclass(of: base, named: name) {
+            subclasses[ObjectIdentifier(base)] = subclass
+            object_setClass(window, subclass)
+        }
+    }
+
+    private static func makeSubclass(of base: AnyClass, named name: String) -> AnyClass? {
+        if let existing = NSClassFromString(name) { return existing }
+        guard let subclass = objc_allocateClassPair(base, name, 0) else { return nil }
+        let selector = #selector(NSWindow.constrainFrameRect(_:to:))
+        typealias Constrain = @convention(block) (NSWindow, NSRect, NSScreen?) -> NSRect
+        let block: Constrain = { window, rect, screen in
+            guard let bounds = (screen ?? window.screen ?? NSScreen.main)?.frame else { return rect }
+            var rect = rect
+            rect.origin.x = min(max(rect.minX, bounds.minX), max(bounds.minX, bounds.maxX - rect.width))
+            rect.origin.y = min(max(rect.minY, bounds.minY), max(bounds.minY, bounds.maxY - rect.height))
+            return rect
+        }
+        guard let method = class_getInstanceMethod(base, selector) else { return nil }
+        class_addMethod(subclass, selector, imp_implementationWithBlock(block), method_getTypeEncoding(method))
+        objc_registerClassPair(subclass)
+        return subclass
     }
 }
