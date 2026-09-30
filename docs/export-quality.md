@@ -1,8 +1,23 @@
 # Export quality
 
-MP4 defaults to H.264 (`libx264`, CRF 16, `fast`), at the selected resolution and frame rate. High quality uses CRF 14 / `medium`. Keep original file is an explicit option available only for a full-length, unchanged MP4; it copies the bytes without compression. Both Save and Copy use the same export path. Recording masters stay unchanged.
+Video exports offer three qualities, chosen in the editor bar and remembered between exports. Each
+maps to a constant rate factor per encoder; lower keeps more detail and makes a bigger file.
 
-The default was chosen from local measurements on 2026-09-17, on this Apple Silicon Mac running macOS 27. A 21.87-second UI recording with text and pointer movement was encoded at 30 fps at its original 3022×1622 resolution. The source was 1,705,728 bytes. Each encode was timed once, so small timing differences are not significant.
+| Quality | MP4 (H.264, `fast`) | HEVC (`medium`) | WebM (VP9) and AV1 |
+| --- | ---: | ---: | ---: |
+| Smaller file | CRF 28 | CRF 30 | CRF 42 |
+| Balanced (default) | CRF 20 | CRF 22 | CRF 32 |
+| Best quality | CRF 14 | CRF 16 | CRF 22 |
+
+GIF and APNG have no quality choice. Every export is re-encoded; the former "Keep original file"
+option, which copied an unchanged MP4 byte for byte, was removed. Save, Copy and Open With share
+the same export path, and recording masters stay unchanged. On a 2.4-second full-screen recording
+at 3024×1964, the three MP4 qualities produced 262 KB, 580 KB and 1.17 MB.
+
+The measurements below date from before the three qualities, when MP4 had a single CRF 16
+default with an optional CRF 14.
+
+That default was chosen from local measurements on 2026-09-17, on this Apple Silicon Mac running macOS 27. A 21.87-second UI recording with text and pointer movement was encoded at 30 fps at its original 3022×1622 resolution. The source was 1,705,728 bytes. Each encode was timed once, so small timing differences are not significant.
 
 | Encoder | Output bytes | Encoding seconds | SSIM against source |
 | --- | ---: | ---: | ---: |

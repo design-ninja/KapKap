@@ -18,7 +18,7 @@ lives in the menu bar and keeps itself up to date.
 
 - System audio and microphone, cursor and click highlighting, 15 to 60 fps
 - Global shortcuts to start or stop a recording and to select an area
-- An editor with trimming, resizing, frame rate and mute
+- An editor with trimming, resizing, frame rate, quality and mute, with the expected file size
 - Save, copy to the clipboard or open the export straight in another app
 
 ## Install
@@ -77,7 +77,7 @@ While an area is being drawn or resized, the selection panel fades out of the wa
 Originals are stored in `~/Library/Application Support/KapKap/Recordings`.
 Unfinished files have a leading dot and are retained for diagnosis rather than silently deleted.
 Exports preserve the original file. The editor supports trimming, resolution, frame rate,
-mute, quality (smaller file, balanced or best), and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
+mute, quality (smaller file, balanced or best; see [docs/export-quality.md](docs/export-quality.md)), and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
 Closing the editor while its own recording has never been exported asks first, and offers to keep
 it in Recent recordings or move it to the Trash; imported videos are never touched. The export
 menu can also open the result straight in another app (Open With). The save dialog starts in
@@ -102,8 +102,8 @@ placement, app lifecycle, and macOS file dialogs / Finder integration.
 ## Tests
 
 `swift test` covers display coordinates, pause timing, static-screen duration, empty recordings,
-shortcut registration, and encode/decode round trips for all six export formats, looping and
-mixing of two audio tracks, using generated fixtures. Build the app first so the bundled export
+shortcut registration, and encode/decode round trips for all six export formats, looping,
+mixing of two audio tracks and the size order of the three export qualities, using generated fixtures. Build the app first so the bundled export
 executable is available. Real screen, system audio and microphone capture and multi-monitor
 behavior need permissions and on-device testing; a successful build alone is not evidence that
 those scenarios work.
