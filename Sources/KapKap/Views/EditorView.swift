@@ -4,8 +4,10 @@ import AVKit
 struct EditorView: View {
     @State private var model: EditorStore
     @State private var fullScreen = false
+    @State private var previewHovered = false
     private let store: CaptureStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(url: URL, store: CaptureStore) {
         _model = State(initialValue: EditorStore(url: url))
@@ -18,9 +20,15 @@ struct EditorView: View {
                 RecordingPlayerView(player: model.player)
                 if !model.loaded { ProgressView().controlSize(.small) }
                 playbackControls.padding(.horizontal, 14).padding(.bottom, 14)
+                    .opacity(previewHovered ? 1 : 0)
+                    .allowsHitTesting(previewHovered)
+                    .accessibilityHidden(!previewHovered)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: previewHovered)
             }
             .frame(minHeight: 260, maxHeight: .infinity)
             .background(.black)
+            .contentShape(Rectangle())
+            .onHover { previewHovered = $0 }
             .alert("Discard this recording?", isPresented: $model.confirmingDiscard) {
                 Button("Cancel", role: .cancel) { }
                 Button("Keep in Recordings") {
