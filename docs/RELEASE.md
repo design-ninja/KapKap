@@ -21,11 +21,12 @@ GitHub release with a new `appcast.xml` is what ships an update. `script/release
    xcrun notarytool store-credentials KapKap --apple-id <apple-id> --team-id 75V6XX25FG
    ```
 4. **GitHub CLI** signed in with push access: `gh auth status`.
-5. **Third-party sources.** The bundled FFmpeg is GPL, so each release carries the source of its
-   GPL and LGPL parts. Download the exact versions listed in `THIRD_PARTY_NOTICES.md` (FFmpeg,
-   x264, x265, LAME, mpg123) into `dist/release/sources/`; the script packs them into
-   `KapKap-<version>-third-party-sources.tar`. Update the table and the folder whenever
-   Homebrew's versions change.
+5. **FFmpeg build tools**: `brew install pkg-config cmake meson ninja`. The bundled FFmpeg is
+   built from pinned sources by `script/build_ffmpeg.sh`, which downloads them into
+   `dist/release/sources/` and checks their SHA-256. x264 has no release tarballs: keep
+   `x264-b35605a.tar.bz2` there. Each release carries these archives as
+   `KapKap-<version>-third-party-sources.tar`, since FFmpeg, x264 and x265 are GPL. To update a
+   component, change its line in the script and its row in `THIRD_PARTY_NOTICES.md`.
 
 ## Every release
 
@@ -41,9 +42,14 @@ GitHub release with a new `appcast.xml` is what ships an update. `script/release
    ```
 
 The script moves the `[Unreleased]` notes under the new version, raises `CFBundleVersion`,
-builds with the hardened runtime and the Developer ID certificate, notarizes and staples the app,
+builds with the hardened runtime and the Developer ID certificate (the shipped binaries are
+stripped; `KapKap.app.dSYM` next to the app keeps the symbols for crash reports), packs exactly
+the source archives FFmpeg was built from (each must be listed in `THIRD_PARTY_NOTICES.md`), notarizes and staples the app,
 zips it, writes an `appcast.xml` signed with the Sparkle key (release notes included), commits,
 tags `v0.2.0`, pushes and creates the GitHub release with the zip and the appcast attached.
+
+If any step fails before the release commit, `Info.plist` and `CHANGELOG.md` are restored, so the
+script can simply be run again.
 
 Versions follow [Semantic Versioning](https://semver.org). The build number only ever grows:
 Sparkle compares it to decide what is newer.

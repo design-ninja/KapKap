@@ -50,7 +50,7 @@ struct WindowPickerView: View {
             }
         }.frame(width: 290)
         .foregroundStyle(.primary)
-        .task { await store.loadWindows() }
-        .onChange(of: store.needsScreenAccess) { _, needed in if needed { dismiss() } }
+        // Without Screen Recording access macOS shows its own dialog; an empty list would only cover it.
+        .task { if await !store.loadWindows() { dismiss() } }
     }
 }

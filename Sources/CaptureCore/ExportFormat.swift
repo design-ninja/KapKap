@@ -62,8 +62,8 @@ public struct ExportOptions: Sendable {
         }
         let crf = String(quality.crf(for: format))
         let scale = "fps=\(fps),scale=\(width / 2 * 2):-2:flags=lanczos"
-        var args = ["-hide_banner", "-loglevel", "error", "-nostdin", "-n", "-ss", String(start), "-i", input.path,
-                    "-t", String(end - start)]
+        var args = ["-hide_banner", "-loglevel", "error", "-nostdin", "-n", "-ss", Self.seconds(start), "-i", input.path,
+                    "-t", Self.seconds(end - start)]
         switch format {
         case .gif:
             args += ["-filter_complex", "\(scale),split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a", "-an", "-loop", loop ? "0" : "-1"]
@@ -94,4 +94,8 @@ public struct ExportOptions: Sendable {
         }
         return args + [output.path]
     }
+
+    /// FFmpeg rejects exponent notation, which `String(Double)` produces below 0.0001 (a trim handle
+    /// nudged back to the start can land on 2.8e-17).
+    static func seconds(_ value: Double) -> String { String(format: "%.6f", value) }
 }

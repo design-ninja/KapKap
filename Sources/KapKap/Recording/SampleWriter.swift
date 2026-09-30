@@ -17,6 +17,9 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
     private var lastVideoTime: CMTime?
     private var lastVideoSample: CMSampleBuffer?
     private var failure: Error?
+    /// ScreenCaptureKit ended the stream on its own (the user, the system, a lost display). The writer is
+    /// still healthy, so what arrived so far is finished normally instead of being thrown away.
+    private var interruption: Error?
     private var finishing = false
     private var finalFrameSubmitted = false
     private let onFailure: @Sendable (Error) -> Void
@@ -25,6 +28,8 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
          onFailure: @escaping @Sendable (Error) -> Void) throws {
         self.onFailure = onFailure
         writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        // Fragments keep the file readable if KapKap dies mid-recording; finishing rewrites a plain MP4.
+        writer.movieFragmentInterval = CMTime(seconds: 2, preferredTimescale: 600)
         let metadata = AVMutableMetadataItem()
         metadata.identifier = .commonIdentifierDescription
         metadata.value = "KapKap recording fps=\(settings.fps)" as NSString
@@ -37,7 +42,9 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: min(80_000_000, max(2_000_000, width * height * settings.fps / 5)),
                 AVVideoExpectedSourceFrameRateKey: settings.fps,
-                AVVideoMaxKeyFrameIntervalKey: settings.fps * 2
+                AVVideoMaxKeyFrameIntervalKey: settings.fps * 2,
+                // With B-frames, a fragmented file cannot take the held last frame at stop (-16341).
+                AVVideoAllowFrameReorderingKey: false
             ]
         ])
         video.expectsMediaDataInRealTime = true
@@ -81,7 +88,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
 
     func highlightClick(at point: CGPoint, time: CMTime) {
         queue.async {
-            guard !self.finishing, self.failure == nil, !self.timeline.isPaused,
+            guard !self.finishing, self.failure == nil, self.interruption == nil, !self.timeline.isPaused,
                   self.timeline.presentationTime(for: time) != nil, let highlights = self.clickHighlights else { return }
             highlights.add(at: point, time: time)
             self.startClickAnimation()
@@ -89,7 +96,16 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        queue.async { if !self.finishing { self.fail(error) } }
+        queue.async { self.interrupt(error) }
+    }
+
+    /// Stops taking samples and reports the reason; `finish` still saves everything written before it.
+    func interrupt(_ error: Error) {
+        dispatchPrecondition(condition: .onQueue(queue))
+        guard !finishing, failure == nil, interruption == nil else { return }
+        interruption = error
+        stopClickAnimation()
+        onFailure(error)
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -98,7 +114,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
 
     func consume(_ sample: CMSampleBuffer, type: SCStreamOutputType) {
         dispatchPrecondition(condition: .onQueue(queue))
-        guard !finishing, failure == nil, sample.isValid, CMSampleBufferDataIsReady(sample), !timeline.isPaused else { return }
+        guard !finishing, failure == nil, interruption == nil, sample.isValid, CMSampleBufferDataIsReady(sample), !timeline.isPaused else { return }
         let input: AVAssetWriterInput
         if type == .screen {
             guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
@@ -133,13 +149,20 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
                 self.finishing = true
                 self.stopClickAnimation()
                 self.clickHighlights?.clear()
-                if let failure = self.failure { self.writer.cancelWriting(); continuation.resume(throwing: failure); return }
+                // A writer that failed has nothing more to finish; its file stays on disk for recovery.
+                if self.writer.status == .failed {
+                    continuation.resume(throwing: self.writer.error ?? self.failure ?? CaptureError.message("The encoder failed."))
+                    return
+                }
                 guard let last = self.lastVideoTime else {
                     self.writer.cancelWriting()
                     continuation.resume(throwing: CaptureError.message("No video frames were received. Check Screen Recording permission and try again."))
                     return
                 }
-                let endTime = CMTimeMaximum(last + self.frameDuration, self.timeline.duration(at: stopTime))
+                // After an interruption or a failed frame the recording ends at the last frame that made it in.
+                let endTime = self.interruption != nil || self.failure != nil
+                    ? last + self.frameDuration
+                    : CMTimeMaximum(last + self.frameDuration, self.timeline.duration(at: stopTime))
                 // ScreenCaptureKit sends idle frames on a static desktop; hold the last image through the actual stop time.
                 self.video.requestMediaDataWhenReady(on: self.queue) {
                     guard !self.finalFrameSubmitted else { return }
@@ -149,14 +172,16 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
                         guard self.writer.status == .writing else {
                             throw self.writer.error ?? CaptureError.message("The encoder stopped before finalization.")
                         }
+                        var sessionEnd = endTime
                         let terminalTime = endTime - self.frameDuration
-                        if terminalTime > last, let sample = self.lastVideoSample, self.writer.status == .writing {
-                            let terminal = try self.copy(sample, subtracting: sample.presentationTimeStamp - terminalTime)
-                            guard self.video.append(terminal) else {
-                                throw self.writer.error ?? CaptureError.message("Could not append the final frame.")
-                            }
+                        if terminalTime > last, let sample = self.lastVideoSample {
+                            if let terminal = try? self.copy(sample, subtracting: sample.presentationTimeStamp - terminalTime) {
+                                guard self.video.append(terminal) else {
+                                    throw self.writer.error ?? CaptureError.message("Could not append the final frame.")
+                                }
+                            } else { sessionEnd = last + self.frameDuration }
                         }
-                        self.writer.endSession(atSourceTime: endTime)
+                        self.writer.endSession(atSourceTime: sessionEnd)
                         self.video.markAsFinished()
                         self.audio?.markAsFinished()
                         self.systemAudio?.markAsFinished()
@@ -165,7 +190,10 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
                             if self.writer.status == .completed { continuation.resume() }
                             else { continuation.resume(throwing: self.writer.error ?? CaptureError.message("Could not finish the recording.")) }
                         }
-                    } catch { self.writer.cancelWriting(); continuation.resume(throwing: error) }
+                    } catch {
+                        // Never cancel here: cancelling deletes the file, and a fragmented one is still recoverable.
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
         }
@@ -177,7 +205,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
 
     /// Idle desktop frames do not arrive at video cadence, so finish the pulse using the last clean image.
     private func appendHighlightFrame(at time: CMTime) {
-        guard !finishing, failure == nil, let sample = lastVideoSample, let highlights = clickHighlights,
+        guard !finishing, failure == nil, interruption == nil, let sample = lastVideoSample, let highlights = clickHighlights,
               let adjusted = timeline.presentationTime(for: time), let lastVideoTime,
               adjusted - lastVideoTime >= frameDuration, video.isReadyForMoreMediaData else { return }
         do {

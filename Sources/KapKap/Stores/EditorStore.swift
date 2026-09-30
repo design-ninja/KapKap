@@ -57,6 +57,10 @@ final class EditorStore {
     private var exportTask: Task<Void, Never>?
     /// Whether the preview is running, so the playhead redraws every frame only while it moves.
     private(set) var playing = false
+    /// Bumped when a seek lands, so a paused preview redraws its playhead without polling the player.
+    private(set) var positionRevision = 0
+    /// One generator for the timeline's hover previews instead of a new asset per position.
+    @ObservationIgnored let thumbnails: AVAssetImageGenerator
     @ObservationIgnored private var playbackObservation: NSKeyValueObservation?
     private let scopedAccess: Bool
 
@@ -64,6 +68,9 @@ final class EditorStore {
         self.url = url
         scopedAccess = url.startAccessingSecurityScopedResource()
         self.player = AVPlayer(url: url)
+        thumbnails = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        thumbnails.appliesPreferredTrackTransform = true
+        thumbnails.maximumSize = CGSize(width: 304, height: 172)
         playbackObservation = player.observe(\.timeControlStatus) { [weak self] player, _ in
             let playing = player.timeControlStatus == .playing
             Task { @MainActor in self?.playing = playing }
@@ -152,7 +159,10 @@ final class EditorStore {
         pendingSeek = nil
         seeking = true
         player.seek(to: CMTime(seconds: time, preferredTimescale: 60_000), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
-            Task { @MainActor in self?.seekToPending() }
+            Task { @MainActor in
+                self?.positionRevision += 1
+                self?.seekToPending()
+            }
         }
     }
 
@@ -187,7 +197,7 @@ final class EditorStore {
 
     func copyToClipboard() {
         guard !exporting, loaded else { return }
-        do { export(to: try scratchDestination(in: "Clipboard"), copyToClipboard: true) }
+        do { export(to: try scratchDestination(in: ScratchExports.clipboard), copyToClipboard: true) }
         catch { self.error = UserMessage(text: error.localizedDescription) }
     }
 
@@ -221,17 +231,13 @@ final class EditorStore {
     /// Kap's "Open With": export to a scratch file and hand it straight to another app.
     func exportAndOpen(with application: URL) {
         guard !exporting, loaded else { return }
-        do { export(to: try scratchDestination(in: "Open With"), copyToClipboard: false, openWith: application) }
+        do { export(to: try scratchDestination(in: ScratchExports.openWith), copyToClipboard: false, openWith: application) }
         catch { self.error = UserMessage(text: error.localizedDescription) }
     }
 
     private func scratchDestination(in folder: String) throws -> URL {
-        let directory = try FileManager.default.url(for: .applicationSupportDirectory,
-            in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("KapKap/\(folder)/\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appendingPathComponent(url.deletingPathExtension().lastPathComponent)
-            .appendingPathExtension(format.fileExtension)
+        try ScratchExports.newDestination(in: folder,
+            fileName: url.deletingPathExtension().appendingPathExtension(format.fileExtension).lastPathComponent)
     }
 
     private func export(to destination: URL, copyToClipboard: Bool, openWith application: URL? = nil) {
@@ -248,9 +254,9 @@ final class EditorStore {
             defer { self.exporting = false; self.exportTask = nil }
             do {
                 try await ExportService.export(input: self.url, destination: destination, options: options) { share in
-                    Task { @MainActor [weak self] in
+                    Task { @MainActor in
                         // Whole percents only: the report arrives many times a second.
-                        guard let self, self.exporting, (share * 100).rounded(.down) > (self.exportProgress * 100).rounded(.down) else { return }
+                        guard self.exporting, (share * 100).rounded(.down) > (self.exportProgress * 100).rounded(.down) else { return }
                         self.exportProgress = share
                     }
                 }
@@ -260,10 +266,13 @@ final class EditorStore {
                         throw CaptureError.message("Could not copy the exported file to the clipboard.")
                     }
                     self.copiedToClipboard = true
+                    // The pasteboard now points here, so earlier clipboard exports are no longer reachable.
+                    ScratchExports.prune(ScratchExports.clipboard, keeping: destination)
                 }
                 if let application {
                     _ = try await NSWorkspace.shared.open([destination], withApplicationAt: application,
                                                           configuration: NSWorkspace.OpenConfiguration())
+                    ScratchExports.prune(ScratchExports.openWith, keeping: destination, olderThan: 60 * 60)
                 }
                 self.exportedURL = destination
                 ExportedRecordings.insert(self.url)

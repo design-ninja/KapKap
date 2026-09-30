@@ -1,5 +1,11 @@
 import AppKit
 
+extension NSScreen {
+    var displayID: CGDirectDisplayID? {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+}
+
 enum CaptureWindowGeometry {
     static func liveFrame(_ id: CGWindowID) -> CGRect? {
         guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], id) as? [[String: Any]])?.first,

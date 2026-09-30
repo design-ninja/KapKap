@@ -24,7 +24,20 @@ struct RecordingSettings: Equatable {
 
 enum CaptureError: LocalizedError {
     case message(String)
+    case microphoneDenied
+
     var errorDescription: String? {
-        switch self { case .message(let message): return message }
+        switch self {
+        case .message(let message): return message
+        case .microphoneDenied: return "Allow microphone access for KapKap in System Settings → Privacy & Security → Microphone."
+        }
+    }
+
+    /// The System Settings pane that resolves the error, when there is one.
+    var settingsURL: URL? {
+        switch self {
+        case .message: return nil
+        case .microphoneDenied: return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        }
     }
 }
