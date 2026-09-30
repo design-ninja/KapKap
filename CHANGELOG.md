@@ -6,6 +6,8 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
 ### Added
 
 - Fast Hardware Encoding for MP4 and HEVC exports, in the quality menu. The Mac's media engine
@@ -125,7 +127,8 @@ All notable changes to KapKap are listed here. The format follows
 - Recent recordings list with poster frames, reveal in Finder and copy to clipboard.
 - The last selected area is restored on launch.
 
-[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/design-ninja/KapKap/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/design-ninja/KapKap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/design-ninja/KapKap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/design-ninja/KapKap/compare/v0.1.0...v0.2.0
