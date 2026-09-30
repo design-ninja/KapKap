@@ -6,6 +6,18 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Fast Hardware Encoding for MP4 and HEVC exports, in the quality menu. The Mac's media engine
+  encodes game and video footage two to four times faster than x264 and x265, at a bigger file.
+- A recording quality in Settings → Recording: High doubles the bit rate for games and video.
+
+### Changed
+
+- Recordings at 4K and 60 fps get their full bit rate: the ceiling rose from 80 to 100 Mbps.
+- The README explains how to stop and pause while the recorder panel is hidden.
+- Settings no longer carry explanatory notes under each section.
+
 ## [0.4.0] - 2026-09-30
 
 ### Added

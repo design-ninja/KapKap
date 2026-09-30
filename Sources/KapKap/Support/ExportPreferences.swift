@@ -6,6 +6,7 @@ enum ExportPreferences {
     private static let directoryKey = "exportDirectory"
     private static let loopKey = "loopExports"
     private static let qualityKey = "exportQuality"
+    private static let hardwareKey = "hardwareEncoding"
 
     /// Where the save dialog opens: the Desktop until the user picks another folder.
     static var directory: URL {
@@ -45,5 +46,11 @@ enum ExportPreferences {
     static var quality: ExportQuality {
         get { UserDefaults.standard.string(forKey: qualityKey).flatMap(ExportQuality.init(rawValue:)) ?? .balanced }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: qualityKey) }
+    }
+
+    /// MP4 and HEVC on the Mac's media engine: several times faster, bigger files. Off until chosen.
+    static var hardware: Bool {
+        get { UserDefaults.standard.bool(forKey: hardwareKey) }
+        set { UserDefaults.standard.set(newValue, forKey: hardwareKey) }
     }
 }

@@ -40,7 +40,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width, AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: min(80_000_000, max(2_000_000, width * height * settings.fps / 5)),
+                AVVideoAverageBitRateKey: settings.quality.bitRate(width: width, height: height, fps: settings.fps),
                 AVVideoExpectedSourceFrameRateKey: settings.fps,
                 AVVideoMaxKeyFrameIntervalKey: settings.fps * 2,
                 // With B-frames, a fragmented file cannot take the held last frame at stop (-16341).

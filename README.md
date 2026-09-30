@@ -59,8 +59,13 @@ require renewing the permission once.
    on the panel). With system audio and the microphone both on, each gets its own track and
    exports mix them. Recording and export share one set of
    frame rates — 60, 30, 24 and 15 fps; the editor never offers more than the recording holds.
+   Recording quality is Standard or High: High doubles the bit rate for games and video, where
+   Standard can soften fine detail, and makes files twice as big. Exports can't restore detail the
+   recording lacks.
 3. Press Record; a short sound marks the start and is kept out of the recording. Grant Screen Recording and, optionally, Microphone access when macOS asks; macOS shows its own dialog for Screen Recording.
-4. Pause/resume or stop from the recorder window or menu bar.
+4. The recorder panel hides while recording, so it never covers what you record. Stop by clicking
+   the menu-bar icon (it shows the elapsed time) or with the shortcut; Option-click pauses and
+   resumes, and right-click opens a menu with both.
 5. The recording is saved automatically and opens in the editor.
 
 Two global shortcuts work from any app: start/stop recording (**⌃⇧R**, R for Record) and select a recording
@@ -85,7 +90,9 @@ until then is saved and KapKap says why it stopped. If KapKap quits unexpectedly
 (its name starts with a dot) is recovered into Recent recordings at the next launch; a file that cannot
 play keeps its dot for diagnosis. Quitting, logging out or shutting down during a recording saves it first.
 Exports preserve the original file. The editor supports trimming, resolution, frame rate,
-mute, quality (smaller file, balanced or best; see [docs/export-quality.md](docs/export-quality.md)), and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
+mute, quality (smaller file, balanced or best; see [docs/export-quality.md](docs/export-quality.md)), and MP4, GIF, APNG, WebM, HEVC and AV1 export.
+MP4 and HEVC can also use Fast Hardware Encoding, from the quality menu: the Mac's media engine
+encodes game and video footage two to four times faster, at a bigger file for the same detail. A finished export plays a system sound.
 Closing the editor while its own recording has never been exported asks first, and offers to keep
 it in Recent recordings or move it to the Trash; imported videos are never touched. The export
 menu can also open the result straight in another app (Open With). Copies made for the clipboard or

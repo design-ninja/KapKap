@@ -74,14 +74,21 @@ struct EditorExportBar: View {
         .disabled(unavailable)
     }
 
-    /// Only video formats trade size for detail; GIF and APNG have nothing to choose.
+    /// Only video formats trade size for detail; GIF and APNG have nothing to choose. MP4 and HEVC
+    /// can also trade size for speed on the Mac's media engine.
     private var qualityField: some View {
-        MenuField(title: Self.title(for: model.quality), width: 116) {
+        MenuField(title: Self.title(for: model.quality) + (model.usesHardware ? " · Fast" : ""),
+                  width: model.usesHardware ? 150 : 116) {
             Picker("Quality", selection: $model.quality) {
                 ForEach(ExportQuality.allCases) { Text(Self.title(for: $0)).tag($0) }
             }.pickerStyle(.inline)
+            if model.format.offersHardwareEncoding {
+                Divider()
+                Toggle("Fast Hardware Encoding", isOn: $model.hardware)
+            }
         }
-        .help(Self.summary(for: model.quality))
+        .help(Self.summary(for: model.quality)
+              + (model.usesHardware ? " Encoded on the Mac's media engine: several times faster, bigger file." : ""))
         .accessibilityLabel("Export quality")
         .disabled(unavailable)
     }

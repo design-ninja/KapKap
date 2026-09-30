@@ -47,10 +47,6 @@ private struct GeneralSettings: View {
                 }
             } header: {
                 Text("Updates")
-            } footer: {
-                if !updater.isAvailable {
-                    Text("Updates are delivered to release builds from GitHub. This development build does not check.")
-                }
             }
             .disabled(!updater.isAvailable)
             Section {
@@ -65,8 +61,6 @@ private struct GeneralSettings: View {
                 Toggle("Loop GIF and APNG exports", isOn: $loopExports)
             } header: {
                 Text("Export")
-            } footer: {
-                Text("The save dialog opens in this folder. Without looping, GIF and APNG exports play once.")
             }
         }
         .toggleStyle(.switch)
@@ -107,6 +101,10 @@ private struct RecordingSettingsTab: View {
                 Picker("Frame rate", selection: $store.settings.fps) {
                     ForEach(FrameRate.choices.sorted(), id: \.self) { Text("\($0) fps").tag($0) }
                 }
+                Picker("Recording quality", selection: $store.settings.quality) {
+                    Text("Standard").tag(RecordingQuality.standard)
+                    Text("High").tag(RecordingQuality.high)
+                }
                 Toggle("Show cursor", isOn: $store.settings.showCursor)
                 Toggle("Highlight clicks", isOn: $store.settings.highlightClicks)
             } header: {
@@ -123,8 +121,6 @@ private struct RecordingSettingsTab: View {
                 }
             } header: {
                 Text("Audio")
-            } footer: {
-                Text("System audio records what your Mac plays. With the microphone on too, exports mix both.")
             }
         }
         .toggleStyle(.switch)
@@ -145,8 +141,6 @@ private struct ShortcutSettings: View {
             Section {
                 RecordingShortcutView(hotKey: store.recordingHotKey)
                 RecordingShortcutView(hotKey: store.selectionHotKey, title: "Select recording area")
-            } footer: {
-                Text("These work in any app. Click a shortcut to change it; shortcuts that another app uses only inside itself may not be detected.")
             }
         }
     }

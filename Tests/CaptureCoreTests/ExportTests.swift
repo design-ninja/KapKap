@@ -21,6 +21,33 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(arguments[arguments.firstIndex(of: "-t")! + 1], "1.000000")
     }
 
+    func testHardwareEncodingUsesTheMediaEngineOnlyForMP4AndHEVC() throws {
+        let url = URL(fileURLWithPath: "/tmp/unused.mp4")
+        func encoder(_ format: ExportFormat, hardware: Bool) throws -> String {
+            let arguments = try ExportOptions(format: format, start: 0, end: 1, width: 100, fps: 30, muted: true, hardware: hardware)
+                .arguments(input: url, output: url)
+            return arguments.firstIndex(of: "-c:v").map { arguments[$0 + 1] } ?? "none"
+        }
+        XCTAssertEqual(try encoder(.mp4, hardware: true), "h264_videotoolbox")
+        XCTAssertEqual(try encoder(.hevc, hardware: true), "hevc_videotoolbox")
+        XCTAssertEqual(try encoder(.mp4, hardware: false), "libx264")
+        XCTAssertEqual(try encoder(.hevc, hardware: false), "libx265")
+        XCTAssertEqual(try encoder(.webm, hardware: true), "libvpx-vp9")
+        XCTAssertEqual(try encoder(.av1, hardware: true), "libsvtav1")
+    }
+
+    func testRecordingQualityBitRates() {
+        // Standard keeps the previous formula, but 4K at 60 fps is no longer cut to 80 Mbps.
+        XCTAssertEqual(RecordingQuality.standard.bitRate(width: 1920, height: 1080, fps: 60), 24_883_200)
+        XCTAssertEqual(RecordingQuality.standard.bitRate(width: 3840, height: 2160, fps: 60), 99_532_800)
+        XCTAssertEqual(RecordingQuality.high.bitRate(width: 1920, height: 1080, fps: 60), 49_766_400)
+        XCTAssertEqual(RecordingQuality.high.bitRate(width: 3840, height: 2160, fps: 60), 199_065_600)
+        XCTAssertEqual(RecordingQuality.standard.bitRate(width: 160, height: 120, fps: 30), 2_000_000)
+        XCTAssertEqual(RecordingQuality.high.bitRate(width: 160, height: 120, fps: 30), 4_000_000)
+        XCTAssertEqual(RecordingQuality.standard.bitRate(width: 6016, height: 3384, fps: 60), 100_000_000)
+        XCTAssertEqual(RecordingQuality.high.bitRate(width: 6016, height: 3384, fps: 60), 200_000_000)
+    }
+
     func testSmallerQualityMakesSmallerVideoFiles() throws {
         let ffmpeg = try bundledFFmpeg()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-quality-tests-\(UUID().uuidString)")
@@ -29,15 +56,19 @@ final class ExportTests: XCTestCase {
         let input = directory.appendingPathComponent("source.mp4")
         _ = try run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30",
                              "-t", "1", "-c:v", "libx264", "-crf", "0", input.path])
-        for format in ExportFormat.allCases where format != .gif && format != .apng {
+        let encoders = ExportFormat.allCases.filter { $0 != .gif && $0 != .apng }.map { ($0, false) }
+            + ExportFormat.allCases.filter(\.offersHardwareEncoding).map { ($0, true) }
+        for (format, hardware) in encoders {
+            let name = "\(format)\(hardware ? " (hardware)" : "")"
             let sizes = try ExportQuality.allCases.map { quality -> Int in
-                let output = directory.appendingPathComponent("\(format.rawValue)-\(quality.rawValue).\(format.fileExtension)")
-                let options = ExportOptions(format: format, start: 0, end: 1, width: 320, fps: 30, muted: true, quality: quality)
+                let output = directory.appendingPathComponent("\(format.rawValue)-\(hardware)-\(quality.rawValue).\(format.fileExtension)")
+                let options = ExportOptions(format: format, start: 0, end: 1, width: 320, fps: 30, muted: true,
+                                            quality: quality, hardware: hardware)
                 _ = try run(ffmpeg, options.arguments(input: input, output: output))
                 return try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
             }
-            XCTAssertLessThan(sizes[0], sizes[1], "\(format): Smaller is not smaller than Balanced")
-            XCTAssertLessThan(sizes[1], sizes[2], "\(format): Balanced is not smaller than Best")
+            XCTAssertLessThan(sizes[0], sizes[1], "\(name): Smaller is not smaller than Balanced")
+            XCTAssertLessThan(sizes[1], sizes[2], "\(name): Balanced is not smaller than Best")
         }
     }
 
@@ -61,6 +92,39 @@ final class ExportTests: XCTestCase {
                 XCTAssertTrue(probe.contains("00:00:00.80") || probe.contains("00:00:00.81"), "\(format): unexpected trimmed duration\n\(probe)")
             }
         }
+        for format in ExportFormat.allCases where format.offersHardwareEncoding {
+            let output = directory.appendingPathComponent("hardware-\(format.rawValue).\(format.fileExtension)")
+            let options = ExportOptions(format: format, start: 0.2, end: 1.0, width: 160, fps: 15, muted: false, hardware: true)
+            _ = try run(ffmpeg, options.arguments(input: input, output: output))
+            let probe = try run(ffmpeg, ["-hide_banner", "-i", output.path, "-t", "1", "-f", "null", "-"])
+            XCTAssertTrue(probe.contains(format == .hevc ? "Video: hevc" : "Video: h264"), "\(format) (hardware): wrong codec\n\(probe)")
+            XCTAssertTrue(probe.contains("160x120"), "\(format) (hardware): unexpected dimensions\n\(probe)")
+            XCTAssertTrue(probe.contains("Audio:"), "\(format) (hardware): missing audio")
+            XCTAssertTrue(probe.contains("00:00:00.80") || probe.contains("00:00:00.81"), "\(format) (hardware): unexpected trimmed duration\n\(probe)")
+        }
+    }
+
+    /// The point of hardware encoding: x265 took two minutes for a half-minute game clip. A full-HD
+    /// clip at 60 fps must encode clearly faster on the media engine. x264 is already fast on a test
+    /// pattern this easy, so H.264 only gains on busy footage (docs/export-quality.md).
+    func testHardwareHEVCIsFasterThanX265() throws {
+        let ffmpeg = try bundledFFmpeg()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-speed-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("source.mp4")
+        _ = try run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=60",
+                             "-t", "4", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", input.path])
+        func seconds(hardware: Bool) throws -> Double {
+            let output = directory.appendingPathComponent("hevc-\(hardware).mp4")
+            let options = ExportOptions(format: .hevc, start: 0, end: 4, width: 1920, fps: 60, muted: true, hardware: hardware)
+            let started = Date()
+            _ = try run(ffmpeg, options.arguments(input: input, output: output))
+            return Date().timeIntervalSince(started)
+        }
+        let software = try seconds(hardware: false)
+        let hardware = try seconds(hardware: true)
+        XCTAssertLessThan(hardware * 1.5, software, "x265 \(software) s, VideoToolbox \(hardware) s")
     }
 
     func testLoopSettingControlsGIFAndAPNGPlayback() throws {

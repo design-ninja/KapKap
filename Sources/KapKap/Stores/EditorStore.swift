@@ -24,12 +24,17 @@ final class EditorStore {
         didSet { ExportPreferences.quality = quality }
     }
     var offersQuality: Bool { format != .gif && format != .apng }
+    var hardware = ExportPreferences.hardware {
+        didSet { ExportPreferences.hardware = hardware }
+    }
+    /// Whether this export actually runs on the media engine; other formats ignore the choice.
+    var usesHardware: Bool { hardware && format.offersHardwareEncoding }
     /// Roughly how big the export will be, from a short test encode; nil until one has finished.
     private(set) var estimatedBytes: Int64?
     private(set) var estimating = false
     /// Everything that changes the size of the exported file.
     var estimateKey: [AnyHashable] {
-        [loaded, exporting, format, quality, width, fps, muted, start, end]
+        [loaded, exporting, format, quality, usesHardware, width, fps, muted, start, end]
     }
     var muted = false
     var exportsAudio: Bool { audioTracks > 0 && !muted && format != .gif && format != .apng }
@@ -248,7 +253,7 @@ final class EditorStore {
         exportedURL = nil
         copiedToClipboard = false
         let options = ExportOptions(format: format, start: start, end: end,
-                                    width: width, fps: fps, muted: muted, quality: quality,
+                                    width: width, fps: fps, muted: muted, quality: quality, hardware: hardware,
                                     loop: ExportPreferences.loop, audioTracks: audioTracks)
         exportTask = Task {
             defer { self.exporting = false; self.exportTask = nil }
@@ -296,7 +301,7 @@ final class EditorStore {
         let sample = min(length, 2)
         let sampleStart = start + (length - sample) / 2
         let options = ExportOptions(format: format, start: sampleStart, end: sampleStart + sample,
-                                    width: width, fps: fps, muted: muted, quality: quality,
+                                    width: width, fps: fps, muted: muted, quality: quality, hardware: hardware,
                                     loop: ExportPreferences.loop, audioTracks: audioTracks)
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("KapKap-estimate-\(UUID().uuidString).\(format.fileExtension)")
