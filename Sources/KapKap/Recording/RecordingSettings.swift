@@ -10,6 +10,7 @@ struct RecordingSettings: Equatable {
     var microphoneID = UserDefaults.standard.string(forKey: "microphoneID")
     var showCursor = UserDefaults.standard.object(forKey: "showCursor") as? Bool ?? true
     var highlightClicks = UserDefaults.standard.bool(forKey: "highlightClicks")
+    var quality = UserDefaults.standard.string(forKey: "recordingQuality").flatMap(RecordingQuality.init(rawValue:)) ?? .standard
 
     func save() {
         let defaults = UserDefaults.standard
@@ -19,6 +20,7 @@ struct RecordingSettings: Equatable {
         defaults.set(microphoneID, forKey: "microphoneID")
         defaults.set(showCursor, forKey: "showCursor")
         defaults.set(highlightClicks, forKey: "highlightClicks")
+        defaults.set(quality.rawValue, forKey: "recordingQuality")
     }
 }
 

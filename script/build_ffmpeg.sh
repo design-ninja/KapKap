@@ -9,6 +9,7 @@
 # on older systems. Only the encoders, muxers and filters that exports use are kept; every decoder
 # and demuxer stays, so any video can still be imported. There is no network access, OpenSSL,
 # libvmaf, LAME or mpg123. Exports are 8-bit 4:2:0, so x264 and x265 are built for that alone.
+# VideoToolbox, part of macOS, adds the Mac's hardware H.264 and HEVC encoders for fast exports.
 #
 # Needs Xcode's command line tools, pkg-config, cmake, meson and ninja (brew install pkg-config cmake meson ninja).
 # The result is cached in .build/ffmpeg/, keyed by this script's contents.
@@ -30,7 +31,7 @@ dav1d    dav1d-1.5.4.tar.bz2        2abfb0c89212e6e4733a54e0ae509ec00a5b845a6360
 # Kept with the release: the GPL requires FFmpeg's, x264's and x265's source next to the binary.
 SOURCES_DIR="$ROOT_DIR/dist/release/sources"
 
-ENCODERS=libx264,libx265,libvpx_vp9,libsvtav1,libopus,aac,gif,apng,wrapped_avframe,pcm_s16le
+ENCODERS=libx264,libx265,h264_videotoolbox,hevc_videotoolbox,libvpx_vp9,libsvtav1,libopus,aac,gif,apng,wrapped_avframe,pcm_s16le
 MUXERS=mp4,webm,gif,apng,null
 # What ExportOptions builds, what the ffmpeg tool and libavfilter insert on their own (trimming,
 # rotation, cropping, format conversion), and the sources and meters the export tests use.
@@ -144,7 +145,7 @@ SRC="$(unpack ffmpeg)"
     --enable-gpl --enable-version3 \
     --disable-shared --enable-static --pkg-config-flags=--static \
     --disable-programs --enable-ffmpeg --disable-doc --disable-debug \
-    --disable-autodetect --disable-network \
+    --disable-autodetect --disable-network --enable-videotoolbox \
     --enable-zlib --enable-bzlib --enable-iconv \
     --enable-libx264 --enable-libx265 --enable-libvpx --enable-libsvtav1 --enable-libopus --enable-libdav1d \
     --disable-encoders --enable-encoder="$ENCODERS" \

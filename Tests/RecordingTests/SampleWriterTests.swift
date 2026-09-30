@@ -1,6 +1,7 @@
 import XCTest
 import AVFoundation
 import ScreenCaptureKit
+import CaptureCore
 @testable import KapKap
 
 final class SampleWriterTests: XCTestCase {
@@ -57,6 +58,33 @@ final class SampleWriterTests: XCTestCase {
         XCTAssertEqual(duration.seconds, 16, accuracy: 0.05)
         let frame = try await AVAssetImageGenerator(asset: asset).image(at: CMTime(seconds: 15.5, preferredTimescale: 600))
         XCTAssertEqual(frame.image.width, 160)
+    }
+
+    /// Busy footage fills whatever bit rate it gets, so High must write a clearly bigger file.
+    func testHighRecordingQualityKeepsMoreData() async throws {
+        func record(_ quality: RecordingQuality) async throws -> Int {
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-quality-\(UUID().uuidString).mp4")
+            defer { try? FileManager.default.removeItem(at: file) }
+            var settings = RecordingSettings()
+            settings.microphone = false
+            settings.systemAudio = false
+            settings.highlightClicks = false
+            settings.fps = 30
+            settings.quality = quality
+            let sink = try SampleWriter(url: file, width: 160, height: 120, settings: settings) { error in
+                XCTFail(error.localizedDescription)
+            }
+            let origin = CMTime(seconds: 100, preferredTimescale: 60_000)
+            for frame in 0..<90 {
+                let sample = try testCaptureFrame(at: origin + CMTime(value: CMTimeValue(frame), timescale: 30), noise: true)
+                sink.queue.sync { sink.consume(sample, type: .screen) }
+            }
+            try await sink.finish(at: origin + CMTime(seconds: 3, preferredTimescale: 600))
+            return try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        }
+        let standard = try await record(.standard)
+        let high = try await record(.high)
+        XCTAssertGreaterThan(Double(high), Double(standard) * 1.5, "standard \(standard) bytes, high \(high) bytes")
     }
 
     func testEmptyRecordingFailsInsteadOfReturningAnUnplayableFile() async throws {

@@ -9,6 +9,37 @@ maps to a constant rate factor per encoder; lower keeps more detail and makes a 
 | Balanced (default) | CRF 20 | CRF 22 | CRF 32 |
 | Best quality | CRF 14 | CRF 16 | CRF 22 |
 
+## Fast Hardware Encoding
+
+MP4 and HEVC can be encoded on the Mac's media engine (VideoToolbox) instead of x264 or x265. It is
+off by default and chosen from the quality menu. VideoToolbox's constant quality runs from 1 to 100;
+the three qualities use 40, 60 and 75, which gave the busy clip below about the SSIM of x264 at the
+matching CRF (VideoToolbox 35 and 45 bracketed CRF 28; 75 matched CRF 14).
+
+Measured on 2026-09-30 on an Apple Silicon Mac running macOS 27, Balanced, each encode timed once:
+
+| 8 s, 1920×1080, 60 fps, moving fractal with film grain | Seconds | Bytes | SSIM |
+| --- | ---: | ---: | ---: |
+| H.264 x264 CRF 20, fast | 3.84 | 25,528,534 | 0.9914 |
+| H.264 VideoToolbox 60 | 1.87 | 32,357,206 | 0.9907 |
+| HEVC x265 CRF 22, medium | 8.47 | 18,853,872 | 0.9881 |
+| HEVC VideoToolbox 60 | 1.99 | 31,124,495 | 0.9899 |
+
+| 5 s, 3024×1964, 30 fps, KapKap interface recording | Seconds | Bytes | SSIM |
+| --- | ---: | ---: | ---: |
+| H.264 x264 CRF 20, fast | 1.10 | 1,001,184 | 0.9989 |
+| H.264 VideoToolbox 60 | 1.68 | 3,195,151 | 0.9970 |
+| HEVC x265 CRF 22, medium | 3.08 | 1,114,280 | 0.9987 |
+| HEVC VideoToolbox 60 | 1.80 | 2,733,297 | 0.9973 |
+
+On busy footage the media engine is about twice as fast as x264 and four times as fast as x265, for
+files 1.3 to 1.7 times bigger at about the same SSIM. On a still interface x264 is already faster, and the
+hardware file is three times bigger and slightly softer, so software stays the default. x265's fast
+preset was also tried: 7.62 s on the busy clip and a bigger, softer file on the interface, so HEVC
+keeps medium.
+
+## Qualities and history
+
 GIF and APNG have no quality choice. Every export is re-encoded; the former "Keep original file"
 option, which copied an unchanged MP4 byte for byte, was removed. Save, Copy and Open With share
 the same export path, and recording masters stay unchanged. On a 2.4-second full-screen recording

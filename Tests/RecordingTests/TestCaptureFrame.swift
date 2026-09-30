@@ -2,7 +2,8 @@ import XCTest
 import AVFoundation
 import ScreenCaptureKit
 
-func testCaptureFrame(at time: CMTime, nonPropagatingGamma: Double? = nil) throws -> CMSampleBuffer {
+/// A 160×120 frame, flat grey or, with `noise`, random pixels that no encoder can compress.
+func testCaptureFrame(at time: CMTime, nonPropagatingGamma: Double? = nil, noise: Bool = false) throws -> CMSampleBuffer {
     var pixel: CVPixelBuffer?
     XCTAssertEqual(CVPixelBufferCreate(kCFAllocatorDefault, 160, 120, kCVPixelFormatType_32BGRA,
         [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &pixel), kCVReturnSuccess)
@@ -13,9 +14,9 @@ func testCaptureFrame(at time: CMTime, nonPropagatingGamma: Double? = nil) throw
     for y in 0..<120 {
         for x in 0..<160 {
             let offset = y * stride + x * 4
-            bytes[offset] = 127
-            bytes[offset + 1] = 127
-            bytes[offset + 2] = 127
+            bytes[offset] = noise ? .random(in: 0...255) : 127
+            bytes[offset + 1] = noise ? .random(in: 0...255) : 127
+            bytes[offset + 2] = noise ? .random(in: 0...255) : 127
             bytes[offset + 3] = 255
         }
     }
