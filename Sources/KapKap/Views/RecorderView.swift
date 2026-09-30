@@ -93,6 +93,7 @@ struct RecorderView: View {
         .modifier(RecorderGlass())
         .contentShape(Rectangle())
         .modifier(RecorderWindowDrag(store: store))
+        .ignoresSafeArea(.container, edges: .top)
         .alert("KapKap", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("OK", role: .cancel) { store.error = nil }
             Button("Privacy Settings") {

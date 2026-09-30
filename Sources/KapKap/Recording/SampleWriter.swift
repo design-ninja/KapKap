@@ -11,6 +11,8 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
     /// System audio gets its own track so the microphone stays separable; exports mix the two.
     private let systemAudio: AVAssetWriterInput?
     private let frameDuration: CMTime
+    private let clickHighlights: ClickHighlightRenderer?
+    private var clickTimer: DispatchSourceTimer?
     private var timeline = RecordingTimeline()
     private var lastVideoTime: CMTime?
     private var lastVideoSample: CMSampleBuffer?
@@ -19,7 +21,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
     private var finalFrameSubmitted = false
     private let onFailure: @Sendable (Error) -> Void
 
-    init(url: URL, width: Int, height: Int, settings: RecordingSettings,
+    init(url: URL, width: Int, height: Int, settings: RecordingSettings, clickScale: CGFloat = 1,
          onFailure: @escaping @Sendable (Error) -> Void) throws {
         self.onFailure = onFailure
         writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
@@ -28,6 +30,7 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
         metadata.value = "KapKap recording fps=\(settings.fps)" as NSString
         writer.metadata = [metadata]
         frameDuration = CMTime(value: 1, timescale: CMTimeScale(settings.fps))
+        clickHighlights = settings.highlightClicks ? try ClickHighlightRenderer(width: width, height: height, scale: clickScale) : nil
         video = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width, AVVideoHeightKey: height,
@@ -60,9 +63,28 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
         await withCheckedContinuation { continuation in
             queue.async {
                 let now = CMClockGetTime(CMClockGetHostTimeClock())
-                if paused { self.timeline.pause(at: now) } else { self.timeline.resume(at: now) }
+                if paused {
+                    if self.clickTimer != nil {
+                        self.clickHighlights?.clear()
+                        self.appendHighlightFrame(at: now)
+                        self.stopClickAnimation()
+                    }
+                    self.timeline.pause(at: now)
+                } else {
+                    self.timeline.resume(at: now)
+                    if self.clickHighlights != nil, self.lastVideoSample != nil { self.startClickAnimation() }
+                }
                 continuation.resume()
             }
+        }
+    }
+
+    func highlightClick(at point: CGPoint, time: CMTime) {
+        queue.async {
+            guard !self.finishing, self.failure == nil, !self.timeline.isPaused,
+                  self.timeline.presentationTime(for: time) != nil, let highlights = self.clickHighlights else { return }
+            highlights.add(at: point, time: time)
+            self.startClickAnimation()
         }
     }
 
@@ -91,11 +113,17 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
             writer.startSession(atSourceTime: .zero)
             timeline.begin(at: timestamp)
         }
-        guard let adjusted = timeline.presentationTime(for: timestamp), input.isReadyForMoreMediaData else { return }
+        guard let adjusted = timeline.presentationTime(for: timestamp) else { return }
+        if type == .screen {
+            lastVideoSample = sample
+            if let lastVideoTime, adjusted <= lastVideoTime { return }
+        }
+        guard input.isReadyForMoreMediaData else { return }
         do {
-            let retimed = try copy(sample, subtracting: timestamp - adjusted)
+            let rendered = type == .screen ? try clickHighlights?.render(sample, at: timestamp) ?? sample : sample
+            let retimed = try copy(rendered, subtracting: rendered.presentationTimeStamp - adjusted)
             guard input.append(retimed) else { throw writer.error ?? CaptureError.message("The encoder stopped accepting frames.") }
-            if type == .screen { lastVideoTime = adjusted; lastVideoSample = sample }
+            if type == .screen { lastVideoTime = adjusted }
         } catch { fail(error) }
     }
 
@@ -103,6 +131,8 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async {
                 self.finishing = true
+                self.stopClickAnimation()
+                self.clickHighlights?.clear()
                 if let failure = self.failure { self.writer.cancelWriting(); continuation.resume(throwing: failure); return }
                 guard let last = self.lastVideoTime else {
                     self.writer.cancelWriting()
@@ -142,12 +172,43 @@ final class SampleWriter: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
     }
 
     func cancel() {
-        queue.async { self.finishing = true; self.writer.cancelWriting() }
+        queue.async { self.finishing = true; self.stopClickAnimation(); self.writer.cancelWriting() }
+    }
+
+    /// Idle desktop frames do not arrive at video cadence, so finish the pulse using the last clean image.
+    private func appendHighlightFrame(at time: CMTime) {
+        guard !finishing, failure == nil, let sample = lastVideoSample, let highlights = clickHighlights,
+              let adjusted = timeline.presentationTime(for: time), let lastVideoTime,
+              adjusted - lastVideoTime >= frameDuration, video.isReadyForMoreMediaData else { return }
+        do {
+            let rendered = try highlights.render(sample, at: time)
+            let retimed = try copy(rendered, subtracting: rendered.presentationTimeStamp - adjusted)
+            guard video.append(retimed) else { throw writer.error ?? CaptureError.message("Cannot encode the click highlight.") }
+            self.lastVideoTime = adjusted
+            if !highlights.hasPulses { stopClickAnimation() }
+        } catch { fail(error) }
+    }
+
+    private func startClickAnimation() {
+        guard clickTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now(), repeating: frameDuration.seconds)
+        timer.setEventHandler { [weak self] in
+            self?.appendHighlightFrame(at: CMClockGetTime(CMClockGetHostTimeClock()))
+        }
+        clickTimer = timer
+        timer.resume()
+    }
+
+    private func stopClickAnimation() {
+        clickTimer?.cancel()
+        clickTimer = nil
     }
 
     private func fail(_ error: Error) {
         guard failure == nil else { return }
         failure = error
+        stopClickAnimation()
         onFailure(error)
     }
 

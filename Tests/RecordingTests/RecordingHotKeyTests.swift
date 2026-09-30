@@ -43,7 +43,7 @@ final class RecordingHotKeyTests: XCTestCase {
         }
         XCTAssertNil(RecordingShortcut(event: try event([])))
         XCTAssertNil(RecordingShortcut(event: try event([.shift, .option])))
-        XCTAssertEqual(RecordingShortcut(event: try event([.command, .control, .option])), .standard)
+        XCTAssertEqual(RecordingShortcut(event: try event([.control, .shift])), .standard)
     }
 
     @MainActor func testSecondShortcutKeepsItsOwnChoiceAndCannotTakeTheFirstOnesKeys() throws {

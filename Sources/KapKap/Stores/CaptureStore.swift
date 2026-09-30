@@ -32,7 +32,6 @@ final class CaptureStore {
     let selectionModel = SelectionModel()
     @ObservationIgnored private var outlinedWindow: (id: CGWindowID, processID: pid_t)?
     @ObservationIgnored private var frontAppWatcher: NSObjectProtocol?
-    @ObservationIgnored private var recorderLevel: NSWindow.Level?
     private let recorder = ScreenRecorder()
     private let selection = SelectionOverlay()
     private let areaOverlay = RecordingOverlay()
@@ -83,10 +82,8 @@ final class CaptureStore {
         selectionModel.reset()
         phase = .selecting
         selection.present(model: selectionModel) { [weak self] in self?.cancelSelection() }
-        // The panel stays put and swaps its controls, so it has to float above the overlay.
+        // The recorder's permanent overlay level is above the selection canvas.
         if let window = recorderWindow {
-            if recorderLevel == nil { recorderLevel = window.level }
-            window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
             window.makeKeyAndOrderFront(nil)
         }
     }
@@ -95,7 +92,6 @@ final class CaptureStore {
         guard phase == .selecting else { return }
         selection.close()
         phase = .idle
-        restoreRecorderLevel()
         areaOverlay.close()
         if let screen = recorderWindow?.screen ?? NSScreen.main { selectDisplay(screen) }
         recorderWindow?.makeKeyAndOrderFront(nil)
@@ -105,15 +101,8 @@ final class CaptureStore {
         guard phase == .selecting, let target = selectionModel.target() else { return }
         selection.close()
         phase = .idle
-        restoreRecorderLevel()
         self.target = target
         Task { await start() }
-    }
-
-    private func restoreRecorderLevel() {
-        guard let window = recorderWindow, let level = recorderLevel else { return }
-        window.level = level
-        recorderLevel = nil
     }
 
     func selectDisplay(_ screen: NSScreen) {
@@ -203,7 +192,7 @@ final class CaptureStore {
     /// Redraws from the window's current frame, because it may have moved while it was away.
     private func refreshWindowOutline() {
         guard let outlined = outlinedWindow, let target, target.windowID == outlined.id,
-              let frame = Self.liveWindowFrame(outlined.id) else {
+              let frame = CaptureWindowGeometry.liveFrame(outlined.id) else {
             areaOverlay.close()
             return
         }
@@ -222,18 +211,10 @@ final class CaptureStore {
         }
     }
 
-    private static func liveWindowFrame(_ id: CGWindowID) -> CGRect? {
-        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], id) as? [[String: Any]])?.first,
-              (info[kCGWindowIsOnscreen as String] as? Bool) == true,
-              let bounds = info[kCGWindowBounds as String] as? NSDictionary,
-              let frame = CGRect(dictionaryRepresentation: bounds) else { return nil }
-        return frame
-    }
-
     /// ScreenCaptureKit reports window frames top-left down; AppKit panels are laid out bottom-left up.
     private static func screenRect(_ frame: CGRect) -> CGRect {
         guard let primary = NSScreen.screens.first else { return frame }
-        return CGRect(x: frame.minX, y: primary.frame.maxY - frame.maxY, width: frame.width, height: frame.height)
+        return CaptureWindowGeometry.screenRect(frame, primary: primary.frame)
     }
 
     func start() async {

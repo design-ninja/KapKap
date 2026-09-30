@@ -11,6 +11,8 @@ struct SelectionView: View {
     @State private var dragOrigin: CGRect?
     @State private var moving = false
     @State private var resizeAnchor: CGPoint?
+    @State private var resizeCorner: Int?
+    @State private var resizeEdge: SelectionEdge?
 
     private var mine: Bool { model.displayID == displayID }
     private var selection: CGRect { mine ? model.rect : .zero }
@@ -24,7 +26,7 @@ struct SelectionView: View {
                     context.fill(shade, with: .color(.black.opacity(0.35)), style: FillStyle(eoFill: true))
                     if !selection.isEmpty {
                         context.stroke(Path(selection), with: .color(.white), lineWidth: 1)
-                        for point in corners(selection) {
+                        for point in corners(selection) + SelectionEdge.allCases.map({ $0.point(in: selection) }) {
                             context.fill(Path(ellipseIn: CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)),
                                          with: .color(.white))
                         }
@@ -36,6 +38,8 @@ struct SelectionView: View {
                     .onEnded { _ in
                         dragOrigin = nil
                         resizeAnchor = nil
+                        resizeCorner = nil
+                        resizeEdge = nil
                         pointer = nil
                         model.interacting = false
                         model.syncFields()
@@ -44,8 +48,13 @@ struct SelectionView: View {
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let point):
+                        guard dragOrigin == nil else { return }
                         if selection.isEmpty { pointer = point }
-                        if selection.contains(point) { NSCursor.openHand.set() }
+                        if let corner = corner(at: point, in: selection) {
+                            cornerCursor(corner).set()
+                        } else if let edge = edge(at: point, in: selection) {
+                            edgeCursor(edge).set()
+                        } else if selection.contains(point) { NSCursor.openHand.set() }
                         else { NSCursor.crosshair.set() }
                     case .ended: pointer = nil; NSCursor.arrow.set()
                     }
@@ -85,18 +94,25 @@ struct SelectionView: View {
         if dragOrigin == nil {
             model.activate(displayID: displayID, screenFrame: screenFrame, scale: scale, bounds: bounds)
             dragOrigin = model.rect
-            let points = corners(model.rect)
-            if !model.rect.isEmpty,
-               let index = points.firstIndex(where: { hypot($0.x - drag.startLocation.x, $0.y - drag.startLocation.y) < 12 }) {
-                resizeAnchor = points[3 - index]
+            if let index = corner(at: drag.startLocation, in: model.rect) {
+                resizeCorner = index
+                resizeAnchor = corners(model.rect)[3 - index]
             }
-            moving = resizeAnchor == nil && model.rect.contains(drag.startLocation)
+            if resizeAnchor == nil { resizeEdge = edge(at: drag.startLocation, in: model.rect) }
+            moving = resizeAnchor == nil && resizeEdge == nil && model.rect.contains(drag.startLocation)
         }
         guard let original = dragOrigin else { return }
         if moving {
             model.rect.origin = CGPoint(x: max(0, min(bounds.width - original.width, original.minX + drag.translation.width)),
                                         y: max(0, min(bounds.height - original.height, original.minY + drag.translation.height)))
             NSCursor.closedHand.set()
+        } else if let resizeEdge {
+            let proportion = model.locked
+                ? model.aspect(model.ratio).map { CGFloat($0) } ?? (original.height > 0 ? original.width / original.height : nil)
+                : nil
+            model.rect = resizeEdge.resized(original, translation: drag.translation, bounds: bounds, aspectRatio: proportion)
+            pointer = drag.location
+            edgeCursor(resizeEdge).set()
         } else {
             let start = resizeAnchor ?? drag.startLocation
             let end = CGPoint(x: max(0, min(bounds.width, drag.location.x)), y: max(0, min(bounds.height, drag.location.y)))
@@ -109,7 +125,40 @@ struct SelectionView: View {
             model.rect = CGRect(x: end.x < start.x ? start.x - w : start.x,
                                 y: end.y < start.y ? start.y - h : start.y, width: w, height: h)
             pointer = end
+            if resizeCorner != nil {
+                let corner = (end.y < start.y ? 0 : 2) + (end.x < start.x ? 0 : 1)
+                cornerCursor(corner).set()
+            }
         }
         model.syncFields()
+    }
+
+    private func edge(at point: CGPoint, in rect: CGRect) -> SelectionEdge? {
+        guard !rect.isEmpty else { return nil }
+        return SelectionEdge.allCases.first {
+            let handle = $0.point(in: rect)
+            return hypot(handle.x - point.x, handle.y - point.y) < 12
+        }
+    }
+
+    private func corner(at point: CGPoint, in rect: CGRect) -> Int? {
+        guard !rect.isEmpty else { return nil }
+        return corners(rect).firstIndex { hypot($0.x - point.x, $0.y - point.y) < 12 }
+    }
+
+    private func cornerCursor(_ index: Int) -> NSCursor {
+        let positions: [NSCursor.FrameResizePosition] = [.topLeft, .topRight, .bottomLeft, .bottomRight]
+        return NSCursor.frameResize(position: positions[index], directions: .all)
+    }
+
+    private func edgeCursor(_ edge: SelectionEdge) -> NSCursor {
+        let position: NSCursor.FrameResizePosition
+        switch edge {
+        case .left: position = .left
+        case .right: position = .right
+        case .top: position = .top
+        case .bottom: position = .bottom
+        }
+        return NSCursor.frameResize(position: position, directions: .all)
     }
 }

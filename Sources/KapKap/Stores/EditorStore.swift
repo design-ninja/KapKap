@@ -27,6 +27,7 @@ final class EditorStore {
             && start == 0 && end == duration && width == sourceWidth && fps == sourceFPS && !muted
     }
     var muted = false
+    var exportsAudio: Bool { audioTracks > 0 && !muted && format != .gif && format != .apng }
     var exporting = false
     var exportedURL: URL?
     var copiedToClipboard = false

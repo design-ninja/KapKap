@@ -16,6 +16,7 @@ struct CaptureTarget {
 final class ScreenRecorder {
     private var stream: SCStream?
     private var sink: SampleWriter?
+    private var clickMonitor: RecordingClickMonitor?
     private var destination: URL?
     private var temporary: URL?
     var onFailure: ((Error) -> Void)?
@@ -57,7 +58,7 @@ final class ScreenRecorder {
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(settings.fps))
         config.queueDepth = 6
         config.showsCursor = settings.showCursor
-        config.showMouseClicks = settings.highlightClicks
+        config.showMouseClicks = false
         config.captureMicrophone = settings.microphone
         config.microphoneCaptureDeviceID = settings.microphoneID
         config.capturesAudio = settings.systemAudio
@@ -69,7 +70,8 @@ final class ScreenRecorder {
         config.colorSpaceName = CGColorSpace.sRGB
         let output = try RecordingLibrary.newURL()
         let pending = output.deletingLastPathComponent().appendingPathComponent(".\(output.lastPathComponent)")
-        let sink = try SampleWriter(url: pending, width: Int(size.width), height: Int(size.height), settings: settings) { [weak self] error in
+        let sink = try SampleWriter(url: pending, width: Int(size.width), height: Int(size.height), settings: settings,
+                                    clickScale: CGFloat(filter.pointPixelScale)) { [weak self] error in
             Task { @MainActor in self?.onFailure?(error) }
         }
         let stream = SCStream(filter: filter, configuration: config, delegate: sink)
@@ -82,12 +84,18 @@ final class ScreenRecorder {
         temporary = pending
         do { try await stream.startCapture() }
         catch { sink.cancel(); self.stream = nil; self.sink = nil; throw error }
+        if settings.highlightClicks { clickMonitor = RecordingClickMonitor(target: target, source: source, sink: sink) }
     }
 
-    func pause(_ paused: Bool) async { await sink?.setPaused(paused) }
+    func pause(_ paused: Bool) async {
+        clickMonitor?.paused = paused
+        await sink?.setPaused(paused)
+    }
 
     func stop() async throws -> URL {
         guard let stream, let sink, let destination, let temporary else { throw CaptureError.message("There is no active recording.") }
+        clickMonitor?.stop()
+        clickMonitor = nil
         defer { self.stream = nil; self.sink = nil; self.destination = nil; self.temporary = nil }
         let stopTime = CMClockGetTime(CMClockGetHostTimeClock())
         var stopError: Error?

@@ -60,23 +60,23 @@ struct EditorExportBar: View {
         .disabled(unavailable)
     }
 
-    /// A menu like the format picker: the recording's own rate first, as "Native", then lower ones.
+    /// The recording's own rate comes first, followed by lower export rates.
     private var frameRateField: some View {
-        MenuField(title: frameRateTitle(model.fps), width: 84) {
+        MenuField(title: frameRateTitle(model.fps), width: 130) {
             Picker("Frame rate", selection: $model.fps) {
-                Text("Native").tag(model.sourceFPS)
+                Text("\(model.sourceFPS) fps (Native)").tag(model.sourceFPS)
                 ForEach(model.frameRateChoices.filter { $0 < model.sourceFPS }.sorted(), id: \.self) {
                     Text("\($0) fps").tag($0)
                 }
             }.pickerStyle(.inline)
         }
-        .help("Frames per second")
+        .help("Export frame rate · Original: \(model.sourceFPS) fps")
         .accessibilityLabel("Export frame rate")
         .disabled(unavailable)
     }
 
     private func frameRateTitle(_ fps: Int) -> String {
-        fps == model.sourceFPS ? "Native" : "\(fps) fps"
+        fps == model.sourceFPS ? "\(fps) fps (Native)" : "\(fps) fps"
     }
 
     private func result(_ url: URL) -> some View {

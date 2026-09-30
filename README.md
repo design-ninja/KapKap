@@ -61,8 +61,8 @@ require renewing the permission once.
 4. Pause/resume or stop from the recorder window or menu bar.
 5. The recording is saved automatically and opens in the editor.
 
-Two global shortcuts work from any app: start/stop recording (**⌃⌥⌘R**) and select a recording
-area (**⌃⌥⌘A**). Change either in Settings → Shortcuts by clicking its button and pressing
+Two global shortcuts work from any app: start/stop recording (**⌃⇧R**, R for Record) and select a recording
+area (**⌃⇧A**, A for Area). Change either in Settings → Shortcuts by clicking its button and pressing
 Command or Control with a letter or number; Escape cancels.
 The choice persists across launches. A registration conflict keeps the previous choice;
 shortcuts handled locally by another app cannot always be detected.
