@@ -75,8 +75,8 @@ struct RecorderWindowChrome: NSViewRepresentable {
             guard let window else { return }
             store?.recorderWindow = window
             window.appearance = NSAppearance(named: .darkAqua)
-            // A borderless window can never become key, and a popover over a window that is not
-            // key draws every control inactive. Titled (with the bar hidden) can take key.
+            // A popover over a window that is not key draws every control inactive. The window stays
+            // borderless (a title bar would pad it with empty space), so its class is taught to take key.
             if let panel = window as? NSPanel {
                 panel.styleMask.remove(.nonactivatingPanel)
                 panel.becomesKeyOnlyIfNeeded = false
@@ -84,7 +84,8 @@ struct RecorderWindowChrome: NSViewRepresentable {
             }
             window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary]
-            window.styleMask.insert([.titled, .fullSizeContentView, .closable])
+            window.styleMask.remove(.titled)
+            window.styleMask.insert([.fullSizeContentView, .closable])
             UnconstrainedWindow.install(on: window)
             // Changing the style mask restores the system background, so clear it afterwards.
             window.isOpaque = false
@@ -132,8 +133,8 @@ enum RecorderWindowPosition {
     }
 }
 
-/// AppKit keeps titled windows under the menu bar and clear of the Dock. The panel floats above both,
-/// so its window class is swapped for one that only keeps it inside the physical screen.
+/// SwiftUI owns the panel's window, so its class is swapped for one that can take key while borderless
+/// and that ignores the menu bar and Dock, keeping the panel only inside the physical screen.
 enum UnconstrainedWindow {
     private static var subclasses: [ObjectIdentifier: AnyClass] = [:]
 
@@ -161,6 +162,11 @@ enum UnconstrainedWindow {
         }
         guard let method = class_getInstanceMethod(base, selector) else { return nil }
         class_addMethod(subclass, selector, imp_implementationWithBlock(block), method_getTypeEncoding(method))
+        let canBecome: @convention(block) (NSWindow) -> Bool = { _ in true }
+        for selector in [#selector(getter: NSWindow.canBecomeKey), #selector(getter: NSWindow.canBecomeMain)] {
+            guard let method = class_getInstanceMethod(base, selector) else { continue }
+            class_addMethod(subclass, selector, imp_implementationWithBlock(canBecome), method_getTypeEncoding(method))
+        }
         objc_registerClassPair(subclass)
         return subclass
     }
