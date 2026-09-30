@@ -6,6 +6,8 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-30
+
 ### Added
 
 - Settings → Recording offers the last area drawn next to the displays.
@@ -111,7 +113,8 @@ All notable changes to KapKap are listed here. The format follows
 - Recent recordings list with poster frames, reveal in Finder and copy to clipboard.
 - The last selected area is restored on launch.
 
-[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/design-ninja/KapKap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/design-ninja/KapKap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/design-ninja/KapKap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/design-ninja/KapKap/releases/tag/v0.1.0
