@@ -57,7 +57,7 @@ require renewing the permission once.
    on the panel). With system audio and the microphone both on, each gets its own track and
    exports mix them. Recording and export share one set of
    frame rates — 60, 30, 24 and 15 fps; the editor never offers more than the recording holds.
-3. Press Record. Grant Screen Recording and, optionally, Microphone access when macOS asks.
+3. Press Record; a short sound marks the start and is kept out of the recording. Grant Screen Recording and, optionally, Microphone access when macOS asks.
 4. Pause/resume or stop from the recorder window or menu bar.
 5. The recording is saved automatically and opens in the editor.
 
@@ -77,7 +77,7 @@ While an area is being drawn or resized, the selection panel fades out of the wa
 Originals are stored in `~/Library/Application Support/KapKap/Recordings`.
 Unfinished files have a leading dot and are retained for diagnosis rather than silently deleted.
 Exports preserve the original file. The editor supports trimming, resolution, frame rate,
-mute, and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
+mute, quality (smaller file, balanced or best), and MP4, GIF, APNG, WebM, HEVC and AV1 export. A finished export plays a system sound.
 Closing the editor while its own recording has never been exported asks first, and offers to keep
 it in Recent recordings or move it to the Trash; imported videos are never touched. The export
 menu can also open the result straight in another app (Open With). The save dialog starts in

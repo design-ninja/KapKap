@@ -20,15 +20,22 @@ final class EditorStore {
     private var audioTracks = 1
     var frameRateChoices: [Int] { FrameRate.choices(upTo: sourceFPS) }
     var format = ExportFormat.mp4
-    var quality = MP4Quality.balanced
-    var keepOriginal = false
-    var canKeepOriginal: Bool {
-        format == .mp4 && url.pathExtension.lowercased() == "mp4"
-            && start == 0 && end == duration && width == sourceWidth && fps == sourceFPS && !muted
+    var quality = ExportPreferences.quality {
+        didSet { ExportPreferences.quality = quality }
+    }
+    var offersQuality: Bool { format != .gif && format != .apng }
+    /// Roughly how big the export will be, from a short test encode; nil until one has finished.
+    private(set) var estimatedBytes: Int64?
+    private(set) var estimating = false
+    /// Everything that changes the size of the exported file.
+    var estimateKey: [AnyHashable] {
+        [loaded, exporting, format, quality, width, fps, muted, start, end]
     }
     var muted = false
     var exportsAudio: Bool { audioTracks > 0 && !muted && format != .gif && format != .apng }
     var exporting = false
+    /// How much of the running export is done, 0 to 1.
+    private(set) var exportProgress = 0.0
     var exportedURL: URL?
     var copiedToClipboard = false
     var error: UserMessage?
@@ -48,12 +55,19 @@ final class EditorStore {
         loaded && exportedURL == nil && !exporting && ownRecording && !ExportedRecordings.contains(url)
     }
     private var exportTask: Task<Void, Never>?
+    /// Whether the preview is running, so the playhead redraws every frame only while it moves.
+    private(set) var playing = false
+    @ObservationIgnored private var playbackObservation: NSKeyValueObservation?
     private let scopedAccess: Bool
 
     init(url: URL) {
         self.url = url
         scopedAccess = url.startAccessingSecurityScopedResource()
         self.player = AVPlayer(url: url)
+        playbackObservation = player.observe(\.timeControlStatus) { [weak self] player, _ in
+            let playing = player.timeControlStatus == .playing
+            Task { @MainActor in self?.playing = playing }
+        }
     }
 
     deinit { if scopedAccess { url.stopAccessingSecurityScopedResource() } }
@@ -120,10 +134,26 @@ final class EditorStore {
         setExportWidth(Int(Double(min(sourceHeight, max(2, value))) * Double(sourceWidth) / Double(sourceHeight)))
     }
 
+    /// Frame-exact seeks are slow, so while one runs only the latest target waits for its turn
+    /// instead of a queue of stale ones (Apple's "smooth scrubbing" approach, QA1820).
+    @ObservationIgnored private var seeking = false
+    @ObservationIgnored private var pendingSeek: Double?
+
     func seekPreview(_ time: Double) {
         player.pause()
         player.currentItem?.forwardPlaybackEndTime = .invalid
-        player.seek(to: CMTime(seconds: time, preferredTimescale: 60_000), toleranceBefore: .zero, toleranceAfter: .zero)
+        pendingSeek = time
+        guard !seeking else { return }
+        seekToPending()
+    }
+
+    private func seekToPending() {
+        guard let time = pendingSeek else { seeking = false; return }
+        pendingSeek = nil
+        seeking = true
+        player.seek(to: CMTime(seconds: time, preferredTimescale: 60_000), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            Task { @MainActor in self?.seekToPending() }
+        }
     }
 
     func togglePlayback() {
@@ -208,16 +238,22 @@ final class EditorStore {
         guard !exporting else { return }
         player.pause()
         exporting = true
+        exportProgress = 0
         exportedURL = nil
         copiedToClipboard = false
         let options = ExportOptions(format: format, start: start, end: end,
                                     width: width, fps: fps, muted: muted, quality: quality,
                                     loop: ExportPreferences.loop, audioTracks: audioTracks)
-        let preserveOriginal = keepOriginal && canKeepOriginal
         exportTask = Task {
             defer { self.exporting = false; self.exportTask = nil }
             do {
-                try await ExportService.export(input: self.url, destination: destination, options: options, preserveOriginal: preserveOriginal)
+                try await ExportService.export(input: self.url, destination: destination, options: options) { share in
+                    Task { @MainActor [weak self] in
+                        // Whole percents only: the report arrives many times a second.
+                        guard let self, self.exporting, (share * 100).rounded(.down) > (self.exportProgress * 100).rounded(.down) else { return }
+                        self.exportProgress = share
+                    }
+                }
                 if copyToClipboard {
                     NSPasteboard.general.clearContents()
                     guard NSPasteboard.general.writeObjects([destination as NSURL]) else {
@@ -238,6 +274,33 @@ final class EditorStore {
     }
 
     func cancelExport() { exportTask?.cancel() }
+
+    /// Encodes up to two seconds from the middle of the trimmed range with the current settings and
+    /// scales the result to the full length. Waits out quick edits, such as dragging a trim handle.
+    func estimateSize() async {
+        guard loaded, !exporting else { return }
+        estimating = true
+        defer { if !Task.isCancelled { estimating = false } }
+        try? await Task.sleep(for: .milliseconds(500))
+        guard !Task.isCancelled else { return }
+        let length = end - start
+        let sample = min(length, 2)
+        let sampleStart = start + (length - sample) / 2
+        let options = ExportOptions(format: format, start: sampleStart, end: sampleStart + sample,
+                                    width: width, fps: fps, muted: muted, quality: quality,
+                                    loop: ExportPreferences.loop, audioTracks: audioTracks)
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KapKap-estimate-\(UUID().uuidString).\(format.fileExtension)")
+        defer { try? FileManager.default.removeItem(at: destination) }
+        do {
+            try await ExportService.export(input: url, destination: destination, options: options)
+            let bytes = try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard !Task.isCancelled, sample > 0 else { return }
+            estimatedBytes = Int64(Double(bytes) * length / sample)
+        } catch {
+            if !Task.isCancelled { estimatedBytes = nil }
+        }
+    }
 }
 
 /// Recordings that have been exported at least once, remembered across launches by file name.

@@ -1,9 +1,11 @@
 import Foundation
+import CaptureCore
 
 /// App-wide export choices that Kap keeps in its preferences rather than per export.
 enum ExportPreferences {
     private static let directoryKey = "exportDirectory"
     private static let loopKey = "loopExports"
+    private static let qualityKey = "exportQuality"
 
     /// Where the save dialog opens: the Desktop until the user picks another folder.
     static var directory: URL {
@@ -37,5 +39,11 @@ enum ExportPreferences {
     static var loop: Bool {
         get { UserDefaults.standard.object(forKey: loopKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: loopKey) }
+    }
+
+    /// The last quality chosen in the editor, reused for the next export.
+    static var quality: ExportQuality {
+        get { UserDefaults.standard.string(forKey: qualityKey).flatMap(ExportQuality.init(rawValue:)) ?? .balanced }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: qualityKey) }
     }
 }

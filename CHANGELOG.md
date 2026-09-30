@@ -6,6 +6,25 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A quality choice for video exports (Smaller file, Balanced, Best quality), remembered between exports.
+- An estimated file size next to the export settings.
+- Export progress in percent.
+- A sound when a recording starts. It never ends up in the recording.
+
+### Changed
+
+- Export settings sit directly in the editor bar instead of a popover.
+- The recorder panel can be dragged over the menu bar and the Dock, up to the screen edges.
+- A slimmer frame with viewfinder corners marks the area while recording.
+- The record button dims while there is nothing to record.
+- The playhead moves smoothly during playback and follows the pointer while dragging.
+
+### Removed
+
+- The "Keep original file" export option.
+
 ## [0.2.0] - 2026-09-21
 
 ### Added

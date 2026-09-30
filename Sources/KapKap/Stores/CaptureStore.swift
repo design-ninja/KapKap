@@ -230,7 +230,9 @@ final class CaptureStore {
         if target.windowID == nil { areaOverlay.show(target: target, recording: true) }
         else { clearWindowOutline(); areaOverlay.close() }
         do {
+            if settings.microphone { await playStartSound() }
             try await recorder.start(target: target, settings: settings)
+            if !settings.microphone { await playStartSound() }
             needsScreenAccess = false
             startedAt = Date()
             pausedAt = nil
@@ -244,6 +246,15 @@ final class CaptureStore {
             if CapturePermissions.isDenied(error) { needsScreenAccess = true }
             else { self.error = UserMessage(text: "Could not start recording.\n\n\(error.localizedDescription)") }
         }
+    }
+
+    /// The start chime never lands in the recording. System audio leaves out KapKap's own sounds, but a
+    /// microphone would pick it up from the speakers, so then it plays out before the capture begins.
+    private func playStartSound() async {
+        guard let sound = NSSound(named: "Pop")?.copy() as? NSSound else { return }
+        sound.play()
+        guard settings.microphone else { return }
+        try? await Task.sleep(for: .seconds(sound.duration + 0.15))
     }
 
     func togglePause() async {
