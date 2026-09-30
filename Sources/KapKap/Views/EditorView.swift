@@ -46,7 +46,7 @@ struct EditorView: View {
             }
             EditorExportBar(model: model)
         }
-        .frame(minWidth: 820, minHeight: 340)
+        .frame(minWidth: 880, minHeight: 340)
         .background(EditorWindowLayout(url: model.url,
                                        aspectRatio: model.loaded ? Double(model.sourceWidth) / Double(model.sourceHeight) : nil,
                                        closeRequest: { model.requestClose() }))
@@ -64,7 +64,9 @@ struct EditorView: View {
     }
 
     private var playbackControls: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+        // Every display frame while playing keeps the playhead gliding; a paused preview only needs
+        // to follow seeks.
+        TimelineView(.animation(minimumInterval: model.playing ? nil : 0.1)) { _ in
             let time = model.player.currentTime().seconds
             HStack(spacing: 10) {
                 Button { model.togglePlayback() } label: {

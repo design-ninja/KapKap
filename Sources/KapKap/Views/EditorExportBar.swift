@@ -3,7 +3,6 @@ import CaptureCore
 
 struct EditorExportBar: View {
     @Bindable var model: EditorStore
-    @State private var showOptions = false
     private enum Field { case width, height }
     @FocusState private var focus: Field?
     private var unavailable: Bool { !model.loaded || model.exporting }
@@ -12,23 +11,23 @@ struct EditorExportBar: View {
         HStack(spacing: 8) {
             sizeField
             frameRateField
-            Button { showOptions.toggle() } label: { Image(systemName: "slider.horizontal.3") }
-                .buttonStyle(GlyphButtonStyle())
-                .help("Quality and export settings").accessibilityLabel("Export settings")
-                .popover(isPresented: $showOptions, arrowEdge: .top) { ExportOptionsView(model: model) }
-                .disabled(unavailable)
+            MenuField(title: model.format.rawValue, width: 84) {
+                Picker("Format", selection: $model.format) {
+                    ForEach(ExportFormat.allCases) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.inline)
+            }.help("Export format").disabled(unavailable)
+            if model.offersQuality { qualityField }
+            summary
             Spacer(minLength: 16)
             if model.exporting {
-                ProgressView().controlSize(.small)
-                Text("Exporting…").font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
-                Button("Cancel") { model.cancelExport() }.controlSize(.small)
+                ProgressView(value: model.exportProgress).progressViewStyle(.circular).controlSize(.mini)
+                Text("Exporting \(Int(model.exportProgress * 100))%")
+                    .font(.system(size: 12)).monospacedDigit().foregroundStyle(.white.opacity(0.7))
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.2), value: Int(model.exportProgress * 100))
+                Button("Cancel") { model.cancelExport() }.buttonStyle(FieldButtonStyle())
             } else {
                 if let url = model.exportedURL { result(url) }
-                MenuField(title: model.format.rawValue, width: 84) {
-                    Picker("Format", selection: $model.format) {
-                        ForEach(ExportFormat.allCases) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.inline)
-                }.help("Export format").disabled(unavailable)
                 ExportAction(model: model).disabled(unavailable)
             }
         }
@@ -73,6 +72,47 @@ struct EditorExportBar: View {
         .help("Export frame rate · Original: \(model.sourceFPS) fps")
         .accessibilityLabel("Export frame rate")
         .disabled(unavailable)
+    }
+
+    /// Only video formats trade size for detail; GIF and APNG have nothing to choose.
+    private var qualityField: some View {
+        MenuField(title: Self.title(for: model.quality), width: 116) {
+            Picker("Quality", selection: $model.quality) {
+                ForEach(ExportQuality.allCases) { Text(Self.title(for: $0)).tag($0) }
+            }.pickerStyle(.inline)
+        }
+        .help(Self.summary(for: model.quality))
+        .accessibilityLabel("Export quality")
+        .disabled(unavailable)
+    }
+
+    /// The expected file size, dimmed while a new estimate is on its way.
+    private var summary: some View {
+        Text(model.estimatedBytes.map { "≈ " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "≈ …")
+            .monospacedDigit().lineLimit(1)
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(model.estimating ? 0.25 : 0.45))
+            .animation(.easeOut(duration: 0.15), value: model.estimating)
+            .padding(.leading, 4)
+            .help("Estimated file size, from a short test encode with these settings")
+            .accessibilityLabel(model.estimatedBytes.map { "Estimated size " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Estimating size")
+            .task(id: model.estimateKey) { await model.estimateSize() }
+    }
+
+    private static func title(for quality: ExportQuality) -> String {
+        switch quality {
+        case .smaller: "Smaller file"
+        case .balanced: "Balanced"
+        case .best: "Best quality"
+        }
+    }
+
+    private static func summary(for quality: ExportQuality) -> String {
+        switch quality {
+        case .smaller: "Lightest file, fine for sharing. Small text may blur."
+        case .balanced: "Sharp picture at a reasonable size."
+        case .best: "Closest to the recording. Largest file."
+        }
     }
 
     private func frameRateTitle(_ fps: Int) -> String {

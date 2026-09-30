@@ -9,6 +9,28 @@ final class ExportTests: XCTestCase {
         }
     }
 
+    func testSmallerQualityMakesSmallerVideoFiles() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let ffmpeg = root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")
+        guard FileManager.default.isExecutableFile(atPath: ffmpeg.path) else { throw XCTSkip("Build the app bundle before running export integration tests.") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KapKap-quality-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("source.mp4")
+        _ = try run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30",
+                             "-t", "1", "-c:v", "libx264", "-crf", "0", input.path])
+        for format in ExportFormat.allCases where format != .gif && format != .apng {
+            let sizes = try ExportQuality.allCases.map { quality -> Int in
+                let output = directory.appendingPathComponent("\(format.rawValue)-\(quality.rawValue).\(format.fileExtension)")
+                let options = ExportOptions(format: format, start: 0, end: 1, width: 320, fps: 30, muted: true, quality: quality)
+                _ = try run(ffmpeg, options.arguments(input: input, output: output))
+                return try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            }
+            XCTAssertLessThan(sizes[0], sizes[1], "\(format): Smaller is not smaller than Balanced")
+            XCTAssertLessThan(sizes[1], sizes[2], "\(format): Balanced is not smaller than Best")
+        }
+    }
+
     func testEveryFormatEncodesAndDecodesWithBundledARMTools() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let ffmpeg = root.appendingPathComponent("dist/KapKap.app/Contents/Resources/ffmpeg")

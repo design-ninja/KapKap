@@ -74,6 +74,32 @@ struct GlyphButtonStyle: ButtonStyle {
     }
 }
 
+/// A text button on the same surface as the fields beside it; the platform bezel vanishes on a dark bar.
+struct FieldButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Surface(label: configuration.label, pressed: configuration.isPressed)
+    }
+
+    private struct Surface<Label: View>: View {
+        let label: Label
+        let pressed: Bool
+        @Environment(\.isEnabled) private var enabled
+        @State private var hovered = false
+
+        var body: some View {
+            label.font(.system(size: 12))
+                .foregroundStyle(.white.opacity(enabled ? 1 : 0.4))
+                .padding(.horizontal, 10)
+                .frame(height: ControlSurface.height)
+                .background(pressed ? Color.white.opacity(0.2) : (hovered && enabled ? Color.white.opacity(0.14) : ControlSurface.fill),
+                            in: RoundedRectangle(cornerRadius: ControlSurface.radius))
+                .overlay(RoundedRectangle(cornerRadius: ControlSurface.radius).strokeBorder(ControlSurface.border))
+                .contentShape(Rectangle())
+                .onHover { hovered = $0 }
+        }
+    }
+}
+
 /// A chevron that opens a menu inside a field, so presets stay attached to the value they change.
 struct ChevronMenu<Content: View>: View {
     @ViewBuilder let content: () -> Content

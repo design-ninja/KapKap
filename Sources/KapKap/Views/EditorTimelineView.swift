@@ -7,6 +7,8 @@ struct EditorTimelineView: View {
     @State private var dragStart: Double?
     @State private var dragEnd: Double?
     @State private var hoverTime: Double?
+    /// Where a drag has put the playhead; the player catches up behind it, so it is drawn from here.
+    @State private var scrubTime: Double?
 
     private var total: Double { max(0.01, model.duration) }
     private var gap: Double { min(0.01, total) }
@@ -23,8 +25,10 @@ struct EditorTimelineView: View {
                 Capsule().fill(Color.accentColor).frame(width: max(2, right - left), height: 6).offset(x: left)
                 Color.clear.contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                        model.seekPreview(min(model.end, max(model.start, (value.location.x - inset) / width * total)))
-                    })
+                        let time = min(model.end, max(model.start, (value.location.x - inset) / width * total))
+                        scrubTime = time
+                        model.seekPreview(time)
+                    }.onEnded { _ in scrubTime = nil })
                     .accessibilityLabel("Playback position")
                     .accessibilityValue(Self.timestamp(playhead))
                     .accessibilityAdjustableAction { direction in
@@ -32,14 +36,14 @@ struct EditorTimelineView: View {
                     }
                 RoundedRectangle(cornerRadius: 1.5).fill(.white)
                     .frame(width: 3, height: 20)
-                    .offset(x: min(width, max(0, playhead / total * width)) + inset - 1.5)
+                    .offset(x: min(width, max(0, (scrubTime ?? playhead) / total * width)) + inset - 1.5)
                     .allowsHitTesting(false)
                 handle("Trim start", time: model.start).offset(x: left - inset)
                     .gesture(DragGesture(minimumDistance: 0).onChanged { value in
                         if dragStart == nil { dragStart = model.start }
                         model.start = min(model.end - gap, max(0, (dragStart ?? model.start) + value.translation.width / width * total))
-                        model.seekPreview(model.start); hoverTime = model.start
-                    }.onEnded { _ in dragStart = nil; hoverTime = nil })
+                        model.seekPreview(model.start); hoverTime = model.start; scrubTime = model.start
+                    }.onEnded { _ in dragStart = nil; hoverTime = nil; scrubTime = nil })
                     .accessibilityAdjustableAction { direction in
                         model.start = min(model.end - gap, max(0, model.start + (direction == .increment ? 0.1 : -0.1)))
                         model.seekPreview(model.start)
@@ -48,8 +52,8 @@ struct EditorTimelineView: View {
                     .gesture(DragGesture(minimumDistance: 0).onChanged { value in
                         if dragEnd == nil { dragEnd = model.end }
                         model.end = max(model.start + gap, min(total, (dragEnd ?? model.end) + value.translation.width / width * total))
-                        model.seekPreview(model.end); hoverTime = model.end
-                    }.onEnded { _ in dragEnd = nil; hoverTime = nil })
+                        model.seekPreview(model.end); hoverTime = model.end; scrubTime = model.end
+                    }.onEnded { _ in dragEnd = nil; hoverTime = nil; scrubTime = nil })
                     .accessibilityAdjustableAction { direction in
                         model.end = max(model.start + gap, min(total, model.end + (direction == .increment ? 0.1 : -0.1)))
                         model.seekPreview(model.end)

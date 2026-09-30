@@ -80,7 +80,7 @@ struct EditorWindowLayout: NSViewRepresentable {
             didSize = true
             let screen = window.screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
             let maxHeight = max(340, screen.height - 100)
-            let width = min(1100, max(820, (maxHeight - EditorWindowLayout.barHeight) * aspectRatio))
+            let width = min(1100, max(880, (maxHeight - EditorWindowLayout.barHeight) * aspectRatio))
             let height = min(maxHeight, max(340, width / aspectRatio + EditorWindowLayout.barHeight))
             window.setContentSize(NSSize(width: width, height: height))
             window.center()

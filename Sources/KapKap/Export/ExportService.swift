@@ -8,24 +8,22 @@ enum ExportService {
         return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
     }
 
-    static func export(input: URL, destination: URL, options: ExportOptions, preserveOriginal: Bool = false) async throws {
+    /// `progress` receives the finished share, 0 to 1, from the encoder's own progress report.
+    static func export(input: URL, destination: URL, options: ExportOptions,
+                       progress: (@Sendable (Double) -> Void)? = nil) async throws {
         let working = destination.deletingLastPathComponent().appendingPathComponent(".KapKap-\(UUID().uuidString).\(options.format.fileExtension)")
         defer { try? FileManager.default.removeItem(at: working) }
-        if preserveOriginal {
-            try Task.checkCancellation()
-            try await Task.detached(priority: .userInitiated) {
-                try FileManager.default.copyItem(at: input, to: working)
-            }.value
-        } else {
-            guard let executable else {
-                throw CaptureError.message("The ARM export tools are missing from this build. Rebuild using script/build_and_run.sh.")
-            }
-            let arguments = try options.arguments(input: input, output: working)
-            let process = ExportProcess()
-            try await withTaskCancellationHandler {
-                try await process.run(executable: executable, arguments: arguments)
-            } onCancel: { process.cancel() }
+        guard let executable else {
+            throw CaptureError.message("The ARM export tools are missing from this build. Rebuild using script/build_and_run.sh.")
         }
+        let arguments = try ["-progress", "pipe:1", "-nostats"] + options.arguments(input: input, output: working)
+        let process = ExportProcess()
+        let length = options.end - options.start
+        try await withTaskCancellationHandler {
+            try await process.run(executable: executable, arguments: arguments) { seconds in
+                progress?(min(1, max(0, seconds / length)))
+            }
+        } onCancel: { process.cancel() }
         try Task.checkCancellation()
         if FileManager.default.fileExists(atPath: destination.path) {
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: working)
@@ -44,7 +42,8 @@ private final class ExportProcess: @unchecked Sendable {
         if let process, process.isRunning { process.terminate() }
     }
 
-    func run(executable: URL, arguments: [String]) async throws {
+    /// `encoded` receives how many seconds of output are done, read from `-progress pipe:1`.
+    func run(executable: URL, arguments: [String], encoded: @escaping @Sendable (Double) -> Void) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
@@ -52,7 +51,15 @@ private final class ExportProcess: @unchecked Sendable {
                     process.executableURL = executable
                     process.arguments = arguments
                     process.standardInput = FileHandle.nullDevice
-                    process.standardOutput = FileHandle.nullDevice
+                    let report = Pipe()
+                    process.standardOutput = report
+                    report.fileHandleForReading.readabilityHandler = { handle in
+                        let chunk = String(decoding: handle.availableData, as: UTF8.self)
+                        for line in chunk.split(separator: "\n") where line.hasPrefix("out_time_us=") {
+                            if let micros = Double(line.dropFirst("out_time_us=".count)) { encoded(micros / 1_000_000) }
+                        }
+                    }
+                    defer { report.fileHandleForReading.readabilityHandler = nil }
                     let errors = Pipe()
                     process.standardError = errors
                     self.lock.lock()
