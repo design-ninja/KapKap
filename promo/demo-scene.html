@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbit Release</title>
+<!--
+  A staged scene for the KapKap demo video. Everything here is fictional.
+  Keys: Space plays the scripted run with a smooth virtual cursor, R resets,
+  H toggles the heavy background (for the hardware-export scene), C toggles the cursor.
+  URL: ?autoplay=2 starts after 2 s, ?loop repeats, ?heavy starts heavy.
+-->
+<style>
+  :root {
+    --ink: #f6f1ea;
+    --ink-2: rgba(246, 241, 234, .72);
+    --ink-3: rgba(246, 241, 234, .56);
+    --line: rgba(255, 255, 255, .08);
+    --glass: rgba(10, 8, 7, .74);
+    --glass-2: rgba(255, 255, 255, .04);
+    --accent: #ef4b43;
+    --accent-soft: rgba(239, 75, 67, .16);
+    --sand: #e9c79a;
+    --amber: #f0a868;
+    --shadow: 0 0 0 1px rgba(255,255,255,.09) inset, 0 1px 0 rgba(255,255,255,.12) inset, 0 40px 90px -24px rgba(10, 5, 0, .7), 0 10px 30px -10px rgba(10, 5, 0, .5);
+    --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #b08a62;
+    color: var(--ink);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    cursor: default;
+    user-select: none;
+  }
+  body.hide-cursor, body.hide-cursor * { cursor: none !important; }
+
+  /* The wallpaper drifts slowly so every frame changes a little. */
+  .wall { position: fixed; inset: -4%; background: url("dunes.jpg") center / cover no-repeat; animation: drift 40s ease-in-out infinite alternate; }
+  @keyframes drift { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.06) translate(-1.2%, -.8%); } }
+  body.heavy .wall { opacity: 0; }
+
+  #bg, #fx { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #bg { pointer-events: none; }
+  #fx { pointer-events: none; z-index: 20; }
+
+  .stage { position: relative; z-index: 1; height: 100%; display: grid; place-items: center; padding: 16px; }
+
+  .card {
+    width: min(540px, 100%);
+    background: var(--glass);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 24px 24px 20px;
+    transition: transform .6s var(--ease-spring);
+  }
+  .card.pop { transform: scale(1.015); }
+
+  header { display: flex; align-items: center; gap: 14px; }
+  .title h1 { margin: 0; font-size: 18px; font-weight: 620; letter-spacing: -.01em; }
+  .title p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-3); }
+
+  .overview { display: grid; grid-template-columns: 112px 1fr; gap: 18px; align-items: center; margin: 22px 0 16px; }
+  .ring { position: relative; width: 112px; height: 112px; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 7; }
+  .ring .track { stroke: rgba(255,255,255,.09); }
+  .ring .bar { stroke: url(#ringGrad); stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.65,0,.35,1); }
+  .ring .label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .ring .pct { font-size: 25px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .ring .sub { font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .1em; }
+
+  .chart { background: var(--glass-2); box-shadow: 0 0 0 1px var(--line) inset; border-radius: 16px; padding: 12px 14px 8px; }
+  .chart .top { display: flex; align-items: baseline; justify-content: space-between; }
+  .chart .k { font-size: 11.5px; color: var(--ink-3); }
+  .chart .v { font-size: 20px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .chart .delta { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+  .chart canvas { width: 100%; height: 54px; display: block; margin-top: 4px; }
+
+  ul.tasks { list-style: none; margin: 0; padding: 0; }
+  .task { display: flex; align-items: center; gap: 12px; padding: 11px 2px; border-top: 1px solid var(--line); }
+  .task button.check {
+    all: unset; flex: none; width: 20px; height: 20px; border-radius: 6px;
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,.28) inset; display: grid; place-items: center; cursor: pointer;
+    transition: background .25s, box-shadow .25s, transform .35s var(--ease-spring);
+  }
+  .task button.check:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
+  .task button.check svg { width: 13px; height: 13px; }
+  .task button.check path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset .35s .08s ease-out; }
+  .task.done button.check { background: var(--accent); box-shadow: 0 4px 10px -3px rgba(239,75,67,.6); transform: scale(1.08); }
+  .task.done button.check path { stroke-dashoffset: 0; }
+  .task .txt { flex: 1; min-width: 0; }
+  .task .name { font-size: 14.5px; font-weight: 540; transition: color .3s; }
+  .task .meta { font-size: 12px; color: var(--ink-3); }
+  .task.done .name { color: var(--ink-2); }
+  .task .tag { font-size: 11px; font-weight: 560; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.06); color: var(--ink-3); transition: background .3s, color .3s; }
+  .task.done .tag { background: var(--accent-soft); color: #ff8a80; }
+
+  footer { display: flex; align-items: center; gap: 12px; margin-top: 6px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); }
+  .switch { all: unset; width: 38px; height: 22px; border-radius: 99px; background: rgba(255,255,255,.14); position: relative; cursor: pointer; transition: background .3s; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .4s var(--ease-spring); }
+  .switch[aria-checked="true"] { background: var(--accent); }
+  .switch[aria-checked="true"]::after { transform: translateX(16px); }
+  .switch:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
+
+  .ship {
+    all: unset; margin-left: auto; position: relative; height: 38px; min-width: 146px; padding: 0 18px; border-radius: 11px;
+    background: rgba(255,255,255,.08); color: var(--ink-3); font-weight: 600; font-size: 14px; text-align: center; cursor: pointer;
+    display: grid; place-items: center; overflow: hidden;
+    transition: background .35s, color .35s, box-shadow .35s, transform .3s var(--ease-spring);
+  }
+  .ship:disabled { cursor: not-allowed; }
+  .ship:not(:disabled), .ship.busy { background: var(--accent); color: #fff; box-shadow: 0 10px 24px -8px rgba(239,75,67,.7); }
+  .ship:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
+  .ship.busy, .ship.live { cursor: default; }
+  .ship.busy .lbl, .ship.live .lbl { opacity: 0; }
+  .ship .spin { position: absolute; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; opacity: 0; animation: spin .7s linear infinite; }
+  .ship.busy .spin { opacity: 1; }
+  .ship .ok { position: absolute; opacity: 0; transform: scale(.6); transition: opacity .3s, transform .4s var(--ease-spring); }
+  .ship.live { background: var(--accent); color: #fff; box-shadow: 0 10px 24px -8px rgba(239,75,67,.7); }
+  .ship.live .ok { opacity: 1; transform: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 48px; z-index: 30; transform: translate(-50%, 30px); opacity: 0;
+    background: rgba(10,8,7,.74); backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6);
+    color: var(--ink); padding: 11px 18px 11px 14px; border-radius: 14px; font-size: 14px;
+    display: flex; align-items: center; gap: 10px; box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset, 0 16px 40px -12px rgba(0,0,0,.5);
+    transition: transform .5s var(--ease-spring), opacity .3s;
+  }
+  .toast.show { transform: translate(-50%, 0); opacity: 1; }
+  .toast b { font-weight: 620; }
+  .toast span span { color: var(--ink-3); }
+  .toast i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(239,75,67,.25); }
+
+  .vcursor { position: fixed; left: 0; top: 0; z-index: 40; width: 26px; height: 26px; pointer-events: none; opacity: 0; transition: opacity .3s; will-change: transform; }
+  .vcursor.on { opacity: 1; }
+  .vcursor svg { width: 26px; height: 26px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); transition: transform .12s; transform-origin: 6px 4px; }
+  .vcursor.press svg { transform: scale(.86); }
+  .ripple { position: fixed; z-index: 39; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; pointer-events: none; border: 2px solid rgba(239,75,67,.9); animation: ripple .55s ease-out forwards; }
+  @keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+
+
+  @media (prefers-reduced-motion: reduce) { .wall { animation: none; } }
+  @media (max-width: 520px) {
+    .overview { grid-template-columns: 1fr; justify-items: center; }
+    .chart { width: 100%; }
+    footer { flex-wrap: wrap; }
+    .ship { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wall" aria-hidden="true"></div>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<main class="stage">
+  <section class="card" id="card" aria-labelledby="ttl">
+    <header>
+      <div class="title">
+        <h1 id="ttl">Orbit 2.0</h1>
+        <p>Release checklist · Ships today</p>
+      </div>
+    </header>
+
+    <div class="overview">
+      <div class="ring" role="img" aria-label="Release progress">
+        <svg viewBox="0 0 120 120">
+          <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8a6a"/><stop offset="1" stop-color="#ef4b43"/></linearGradient></defs>
+          <circle class="track" cx="60" cy="60" r="50"/>
+          <circle class="bar" id="ringBar" cx="60" cy="60" r="50"/>
+        </svg>
+        <div class="label"><div class="pct" id="pct">0%</div><div class="sub">ready</div></div>
+      </div>
+      <div class="chart">
+        <div class="top">
+          <div><div class="k">Beta installs, live</div><div class="v" id="installs">12,480</div></div>
+          <div class="delta">▲ 18.4%</div>
+        </div>
+        <canvas id="spark" aria-hidden="true"></canvas>
+      </div>
+    </div>
+
+    <ul class="tasks" id="tasks">
+      <li class="task"><button class="check" aria-label="Design review" aria-pressed="false"><svg viewBox="0 0 14 14"><path d="M3 7.4 5.8 10 11 4"/></svg></button><div class="txt"><div class="name">Design review</div><div class="meta">Icons, onboarding, dark mode</div></div><span class="tag">Design</span></li>
+      <li class="task"><button class="check" aria-label="QA on macOS 27" aria-pressed="false"><svg viewBox="0 0 14 14"><path d="M3 7.4 5.8 10 11 4"/></svg></button><div class="txt"><div class="name">QA on macOS 27</div><div class="meta">Apple Silicon · 214 tests passed</div></div><span class="tag">QA</span></li>
+      <li class="task"><button class="check" aria-label="Sign and notarize" aria-pressed="false"><svg viewBox="0 0 14 14"><path d="M3 7.4 5.8 10 11 4"/></svg></button><div class="txt"><div class="name">Sign and notarize</div><div class="meta">Developer ID · stapled</div></div><span class="tag">Build</span></li>
+      <li class="task"><button class="check" aria-label="Release notes" aria-pressed="false"><svg viewBox="0 0 14 14"><path d="M3 7.4 5.8 10 11 4"/></svg></button><div class="txt"><div class="name">Release notes</div><div class="meta">What's new in 2.0</div></div><span class="tag">Docs</span></li>
+    </ul>
+
+    <footer>
+      <div class="toggle"><button class="switch" id="notify" role="switch" aria-checked="false" aria-labelledby="notifyLbl"></button><span id="notifyLbl">Notify the team</span></div>
+      <button class="ship" id="ship" disabled>
+        <span class="lbl">Ship release</span>
+        <span class="spin" aria-hidden="true"></span>
+        <svg class="ok" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10.5 8.3 14 15.5 6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </footer>
+  </section>
+</main>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="toast" id="toast" role="status"><i></i><span><b>Orbit 2.0 is live</b> <span>· 12k users updating</span></span></div>
+<div class="vcursor" id="vc" aria-hidden="true"><svg viewBox="0 0 26 26"><path d="M6 3.5v17.2l4.3-4.1 2.9 6.6 3.1-1.4-2.9-6.5h6.1z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches && !params.has('motion');
+
+  /* ---------- Background: drifting dune light, or a heavy particle field ---------- */
+  const bg = $('#bg'), g = bg.getContext('2d');
+  let W = 0, H = 0, DPR = 1, heavy = params.has('heavy');
+  document.body.classList.toggle('heavy', heavy);
+  function resize() {
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    for (const c of [bg, fx]) { c.width = W * DPR; c.height = H * DPR; }
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    fxg.setTransform(DPR, 0, 0, DPR, 0, 0);
+    sizeSpark();
+  }
+  // Fine sand carried by the wind across the dunes.
+  const grains = Array.from({ length: 260 }, () => ({ x: Math.random(), y: .35 + Math.random() * .65, s: .4 + Math.random() * 1.2, a: .15 + Math.random() * .35, p: Math.random() * 6.28 }));
+  const parts = Array.from({ length: 1800 }, () => ({ x: Math.random(), y: Math.random(), h: Math.random() * 360, s: .6 + Math.random() * 1.6 }));
+  function drawBg(t) {
+    if (!heavy) {
+      g.clearRect(0, 0, W, H);
+      for (const q of grains) {
+        q.x += .0006 * q.s; q.y += Math.sin(t * .001 + q.p) * .00012;
+        if (q.x > 1.02) { q.x = -.02; q.y = .35 + Math.random() * .65; }
+        g.fillStyle = `rgba(255, 236, 205, ${q.a})`;
+        g.fillRect(q.x * W, q.y * H, q.s * 1.4, q.s * .9);
+      }
+      return;
+    }
+    // Heavy: a hue-cycling gradient with a flow field of bright particles, hard for any encoder.
+    const hue = (t / 40) % 360;
+    const lg = g.createLinearGradient(0, 0, W, H);
+    lg.addColorStop(0, `hsl(${hue},70%,18%)`);
+    lg.addColorStop(.5, `hsl(${(hue + 60) % 360},75%,30%)`);
+    lg.addColorStop(1, `hsl(${(hue + 140) % 360},70%,20%)`);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = .35; g.fillStyle = lg; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
+    g.globalCompositeOperation = 'lighter';
+    const k = t * .0004;
+    for (const p of parts) {
+      const a = Math.sin(p.x * 6 + k) * 2 + Math.cos(p.y * 5 - k * 1.3) * 2;
+      p.x += Math.cos(a) * .0016 * p.s; p.y += Math.sin(a) * .0016 * p.s;
+      if (p.x < 0) p.x += 1; if (p.x > 1) p.x -= 1; if (p.y < 0) p.y += 1; if (p.y > 1) p.y -= 1;
+      g.fillStyle = `hsla(${(p.h + hue * 2) % 360},90%,65%,.55)`;
+      g.fillRect(p.x * W, p.y * H, p.s * 1.6, p.s * 1.6);
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---------- Live sparkline that scrolls every frame ---------- */
+  const spark = $('#spark'), sg = spark.getContext('2d');
+  let SW = 0, SH = 0;
+  function sizeSpark() {
+    const r = spark.getBoundingClientRect(); SW = r.width; SH = r.height;
+    spark.width = SW * DPR; spark.height = SH * DPR; sg.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  const pts = []; let v = .45;
+  for (let i = 0; i < 60; i++) { v = Math.min(.92, Math.max(.12, v + (Math.random() - .45) * .09 + (.55 - v) * .06)); pts.push(v); }
+  let scroll = 0, installs = 12480, lastStep = 0;
+  function drawSpark(t, dt) {
+    scroll += dt / 1600;
+    while (scroll >= 1) { scroll -= 1; pts.shift(); v = Math.min(.92, Math.max(.12, v + (Math.random() - .45) * .09 + (.55 - v) * .06)); pts.push(v); }
+    if (t - lastStep > 1200) { lastStep = t; installs += 1 + Math.floor(Math.random() * 2); $('#installs').textContent = installs.toLocaleString('en-US'); }
+    sg.clearRect(0, 0, SW, SH);
+    const step = SW / (pts.length - 3), ox = -scroll * step;
+    sg.beginPath();
+    pts.forEach((p, i) => { const x = ox + i * step, y = SH - 4 - p * (SH - 8); i ? sg.lineTo(x, y) : sg.moveTo(x, y); });
+    sg.lineWidth = 1.8; sg.strokeStyle = '#ef4b43'; sg.lineJoin = 'round'; sg.stroke();
+    sg.lineTo(SW + step, SH); sg.lineTo(ox, SH); sg.closePath();
+    const fg = sg.createLinearGradient(0, 0, 0, SH); fg.addColorStop(0, 'rgba(239,75,67,.28)'); fg.addColorStop(1, 'rgba(239,75,67,0)');
+    sg.fillStyle = fg; sg.fill();
+  }
+
+  /* ---------- Confetti ---------- */
+  const fx = $('#fx'), fxg = fx.getContext('2d');
+  let confetti = [];
+  function burst(x, y) {
+    const cols = ['#ef4b43', '#ff8a6a', '#f6f1ea', '#e9c79a', '#b8322c', '#fff'];
+    for (let i = 0; i < 160; i++) {
+      const a = -Math.PI / 2 + (Math.random() - .5) * Math.PI * 1.1, s = 6 + Math.random() * 10;
+      confetti.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: Math.random() * 6.28, vr: (Math.random() - .5) * .4, w: 5 + Math.random() * 6, h: 3 + Math.random() * 4, c: cols[i % cols.length], life: 1 });
+    }
+  }
+  function drawFx(dt) {
+    fxg.clearRect(0, 0, W, H);
+    const f = dt / 16.7;
+    confetti = confetti.filter(p => p.life > 0 && p.y < H + 40);
+    for (const p of confetti) {
+      p.vy += .32 * f; p.vx *= Math.pow(.985, f); p.x += p.vx * f; p.y += p.vy * f; p.r += p.vr * f; p.life -= .006 * f;
+      fxg.save(); fxg.translate(p.x, p.y); fxg.rotate(p.r); fxg.globalAlpha = Math.min(1, p.life * 2);
+      fxg.fillStyle = p.c; fxg.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2))); fxg.restore();
+    }
+  }
+
+  let last = performance.now();
+  function frame(t) {
+    const dt = Math.min(50, t - last); last = t;
+    if (!reduced || heavy) drawBg(t);
+    drawSpark(t, reduced ? 0 : dt);
+    drawFx(dt);
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- Checklist state ---------- */
+  const ring = $('#ringBar'), C = 2 * Math.PI * 50;
+  ring.style.strokeDasharray = C; ring.style.strokeDashoffset = C;
+  const tasks = $$('.task'), ship = $('#ship'), notify = $('#notify');
+  let shown = 0;
+  function countTo(target) {
+    const from = shown, t0 = performance.now(), d = 900;
+    const tick = now => { const k = Math.min(1, (now - t0) / d), e = k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+      shown = Math.round(from + (target - from) * e); $('#pct').textContent = shown + '%'; if (k < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  function update() {
+    const done = tasks.filter(t => t.classList.contains('done')).length, pct = Math.round(done / tasks.length * 100);
+    ring.style.strokeDashoffset = C * (1 - done / tasks.length);
+    countTo(pct);
+    ship.disabled = done < tasks.length || ship.classList.contains('live');
+  }
+  tasks.forEach(t => $('.check', t).addEventListener('click', e => {
+    if (ship.classList.contains('live')) return;
+    const on = t.classList.toggle('done'); e.currentTarget.setAttribute('aria-pressed', on); update();
+  }));
+  notify.addEventListener('click', () => notify.setAttribute('aria-checked', notify.getAttribute('aria-checked') !== 'true'));
+  ship.addEventListener('click', async () => {
+    if (ship.disabled) return;
+    ship.disabled = true; ship.classList.add('busy');
+    await sleep(1100);
+    ship.classList.remove('busy'); ship.classList.add('live'); ship.querySelector('.lbl').textContent = 'Live';
+    const r = ship.getBoundingClientRect(); burst(r.left + r.width / 2, r.top);
+    $('#card').classList.add('pop'); setTimeout(() => $('#card').classList.remove('pop'), 350);
+    $('#toast').classList.add('show');
+  });
+  function reset() {
+    tasks.forEach(t => { t.classList.remove('done'); $('.check', t).setAttribute('aria-pressed', false); });
+    notify.setAttribute('aria-checked', false);
+    ship.classList.remove('busy', 'live'); ship.querySelector('.lbl').textContent = 'Ship release';
+    $('#toast').classList.remove('show'); confetti = []; update();
+  }
+
+  /* ---------- Virtual cursor: smooth, eased, slightly arced moves ---------- */
+  const vc = $('#vc');
+  let cx = innerWidth * .78, cy = innerHeight * .82, cursorOn = true;
+  const place = () => { vc.style.transform = `translate(${cx - 6}px, ${cy - 4}px)`; };
+  place();
+  function moveTo(el, dur = 750) {
+    const r = el.getBoundingClientRect(), tx = r.left + r.width / 2, ty = r.top + r.height / 2;
+    const sx = cx, sy = cy, bend = (Math.random() - .5) * 60, t0 = performance.now();
+    return new Promise(res => {
+      const tick = now => {
+        const k = Math.min(1, (now - t0) / dur), e = k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+        const nx = -(ty - sy), ny = tx - sx, len = Math.hypot(nx, ny) || 1, arc = Math.sin(Math.PI * e) * bend;
+        cx = sx + (tx - sx) * e + nx / len * arc; cy = sy + (ty - sy) * e + ny / len * arc; place();
+        k < 1 ? requestAnimationFrame(tick) : res();
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+  async function click(el) {
+    vc.classList.add('press');
+    const rp = document.createElement('div'); rp.className = 'ripple'; rp.style.left = cx + 'px'; rp.style.top = cy + 'px';
+    document.body.appendChild(rp); setTimeout(() => rp.remove(), 600);
+    await sleep(90); el.click(); await sleep(70); vc.classList.remove('press');
+  }
+
+  let playing = false;
+  async function play() {
+    if (playing) return; playing = true;
+    document.body.classList.add('playing');
+    if (cursorOn) { document.body.classList.add('hide-cursor'); vc.classList.add('on'); }
+    reset(); await sleep(600);
+    for (const t of tasks) { await moveTo($('.check', t), 650); await sleep(120); await click($('.check', t)); await sleep(380); }
+    await moveTo(notify, 700); await sleep(120); await click(notify); await sleep(450);
+    await moveTo(ship, 650); await sleep(200); await click(ship);
+    await sleep(3400);
+    vc.classList.remove('on'); document.body.classList.remove('hide-cursor');
+    playing = false;
+    if (params.has('loop')) { await sleep(1200); play(); }
+  }
+
+  addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); play(); }
+    else if (e.key === 'r' || e.key === 'R') { if (!playing) { reset(); document.body.classList.remove('playing'); } }
+    else if (e.key === 'h' || e.key === 'H') { heavy = !heavy; document.body.classList.toggle('heavy', heavy); }
+    else if (e.key === 'c' || e.key === 'C') { cursorOn = !cursorOn; }
+  });
+  addEventListener('resize', resize);
+
+  resize(); update(); requestAnimationFrame(frame);
+  if (params.has('autoplay')) setTimeout(play, (parseFloat(params.get('autoplay')) || 1.5) * 1000);
+})();
+</script>
+</body>
+</html>

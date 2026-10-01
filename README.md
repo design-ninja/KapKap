@@ -44,12 +44,20 @@ SVT-AV1, Opus, dav1d), checks their SHA-256, and builds one static ARM executabl
 only what exports need, in a few minutes; later builds reuse it from `.build/ffmpeg`. The app does
 not need Homebrew at runtime.
 
-The app is staged at `dist/KapKap.app`. The build uses the sole Apple Development
+Development builds are staged at `dist/KapKap Debug.app`, with bundle ID
+`com.lirik.KapKap.debug`. Release builds keep `com.lirik.KapKap`. macOS stores privacy
+permissions against both the bundle ID and the signing requirement; separate IDs keep
+development and installed release copies from conflicting. Grant Screen Recording to
+**KapKap Debug** once after switching to this build, and launch that copy for development.
+The run script stops only the copy with the matching bundle ID.
+
+The build uses the sole Apple Development
 identity in the keychain, or an explicit `KAPKAP_SIGNING_IDENTITY`. A stable certificate
 keeps the application's identity consistent across rebuilds for macOS privacy permissions.
-Without a certificate it falls back to ad-hoc signing, which can require granting access
-again after code changes. The first switch from ad-hoc to certificate signing may also
-require renewing the permission once.
+If no certificate is visible, the script stops before building; run with keychain access
+outside the command sandbox. Ad-hoc signing is available explicitly with
+`KAPKAP_SIGNING_IDENTITY=-`, but can require granting access again after code changes.
+The first switch from ad-hoc to certificate signing may also require renewing the permission once.
 `--build-only` builds without opening it; `--verify` checks the launched process.
 
 ## Recording

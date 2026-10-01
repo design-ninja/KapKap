@@ -64,8 +64,11 @@ final class CaptureStore {
         refreshLibrary()
     }
 
-    private func revealRecorder() {
-        NSApp.activate(ignoringOtherApps: true)
+    private func revealRecorder() { showRecorder() }
+
+    /// The panel takes key without activating KapKap, so it appears over whatever space is in front,
+    /// including another app's full screen.
+    func showRecorder() {
         recorderWindow?.makeKeyAndOrderFront(nil)
     }
 

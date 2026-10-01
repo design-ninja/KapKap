@@ -33,6 +33,7 @@ struct RecorderView: View {
                         WindowPickerView(store: store)
                             .foregroundStyle(.primary)
                             .buttonStyle(.automatic)
+                            .background(FullScreenAuxiliary())
                     }
                 }
 
@@ -65,11 +66,11 @@ struct RecorderView: View {
             .buttonStyle(RecorderIconButtonStyle())
             .padding(.horizontal, 12).padding(.vertical, 5)
         }
-        .background(RecorderWindowChrome(store: store, hidden: store.selectionModel.interacting))
+        .background(RecorderWindowChrome(hidden: store.selectionModel.interacting))
         // A popover over an unfocused panel renders its controls inactive, so take focus first.
         .onChange(of: showWindows) { _, shown in if shown { focusPanel() } }
         .background(StatusBarBridge(store: store, phase: store.phase, showRecorder: {
-            openWindow(id: "recorder"); NSApp.activate(ignoringOtherApps: true)
+            store.showRecorder()
         }, showLibrary: {
             store.refreshLibrary(); openWindow(id: "recordings"); NSApp.activate(ignoringOtherApps: true)
         }, showSettings: {
@@ -98,7 +99,7 @@ struct RecorderView: View {
 
     private func focusPanel() {
         NSApp.activate(ignoringOtherApps: true)
-        store.recorderWindow?.makeKeyAndOrderFront(nil)
+        store.showRecorder()
     }
 
     private func record() {

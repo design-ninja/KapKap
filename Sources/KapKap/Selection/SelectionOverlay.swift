@@ -11,7 +11,8 @@ final class SelectionOverlay {
         close()
         for screen in NSScreen.screens {
             guard let displayID = screen.displayID else { continue }
-            let panel = SelectionPanel(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            let panel = SelectionPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+                                       backing: .buffered, defer: false)
             panel.isOpaque = false
             panel.backgroundColor = .clear
             panel.level = .screenSaver
@@ -31,6 +32,8 @@ final class SelectionOverlay {
             }
             return event
         }
+        // Only the active app may set the cursor, and the crosshair is the whole point. The panels are
+        // already on the current space, so activating does not leave another app's full screen.
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -44,6 +47,7 @@ final class SelectionOverlay {
 }
 
 /// Never key: clicking the canvas must not take hover tracking and field focus off the panel.
+/// Non-activating, like the recorder panel, so it can cover another app's full-screen space.
 private final class SelectionPanel: NSPanel {
     override var canBecomeKey: Bool { false }
 }
