@@ -36,4 +36,33 @@ final class CaptureTargetTests: XCTestCase {
         XCTAssertTrue(store.hasSelectedArea)
         XCTAssertEqual(store.lastArea?.rect, selected)
     }
+
+    @MainActor func testStartingSelectedAreaHidesPanelBeforeSchedulingRecording() throws {
+        guard let screen = NSScreen.screens.first, let displayID = screen.displayID else {
+            throw XCTSkip("Needs a display.")
+        }
+        let suite = "KapKap-selection-start-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let store = CaptureStore(defaults: defaults)
+        let panel = NSPanel(contentRect: CGRect(x: 40, y: 40, width: 320, height: 80),
+                            styleMask: .borderless, backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        defer {
+            // Prevent the queued start task from requesting screen access.
+            store.phase = .stopping
+            panel.close()
+            defaults.removePersistentDomain(forName: suite)
+        }
+        store.recorderWindow = panel
+        store.phase = .selecting
+        store.selectionModel.activate(displayID: displayID, screenFrame: screen.frame,
+                                      scale: screen.backingScaleFactor, bounds: screen.frame.size)
+        store.selectionModel.rect = CGRect(x: 40, y: 40, width: 320, height: 200)
+        panel.orderFrontRegardless()
+        XCTAssertTrue(panel.isVisible)
+
+        store.startSelectedArea()
+
+        XCTAssertFalse(panel.isVisible, "The panel must disappear before switching back to its main controls.")
+    }
 }

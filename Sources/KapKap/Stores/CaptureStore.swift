@@ -64,8 +64,11 @@ final class CaptureStore {
         refreshLibrary()
     }
 
-    private func revealRecorder() {
-        NSApp.activate(ignoringOtherApps: true)
+    private func revealRecorder() { showRecorder() }
+
+    /// The panel takes key without activating KapKap, so it appears over whatever space is in front,
+    /// including another app's full screen.
+    func showRecorder() {
         recorderWindow?.makeKeyAndOrderFront(nil)
     }
 
@@ -114,6 +117,8 @@ final class CaptureStore {
 
     func startSelectedArea() {
         guard phase == .selecting, let target = selectionModel.target() else { return }
+        // Hide before changing phase, so the main controls never flash while start() is queued.
+        recorderWindow?.orderOut(nil)
         selection.close()
         phase = .idle
         self.target = target

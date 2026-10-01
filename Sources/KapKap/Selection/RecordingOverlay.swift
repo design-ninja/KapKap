@@ -26,12 +26,12 @@ final class RecordingOverlay {
             panel.contentView = NSHostingView(rootView: AreaShade(hole: hole, recording: recording,
                                                                   cornerRadius: Self.cornerRadius(for: target)))
             panels.append(panel)
-            panel.orderFrontRegardless()
+            CaptureOverlayTransition.show(panel)
         }
     }
 
     func close() {
-        panels.forEach { $0.close() }
+        panels.forEach { CaptureOverlayTransition.close($0) }
         panels.removeAll()
     }
 
@@ -57,10 +57,9 @@ private struct AreaShade: View {
             }
             guard !hole.isEmpty else { return }
             guard recording else {
-                // Before recording the frame is only a marker, so it stays out of the way of the app behind it.
-                // The stroke sits 1.5pt outside the frame, so its radius grows by the same amount.
-                let outline = RoundedRectangle(cornerRadius: cornerRadius > 0 ? cornerRadius + 1.5 : 0)
-                    .path(in: hole.insetBy(dx: -1.5, dy: -1.5))
+                // Keep the stroke inside the window, including when its edges meet the screen bounds.
+                let outline = RoundedRectangle(cornerRadius: max(0, cornerRadius - 1.5))
+                    .path(in: hole.insetBy(dx: 1.5, dy: 1.5))
                 context.stroke(outline, with: .color(.accentColor), lineWidth: 3)
                 return
             }

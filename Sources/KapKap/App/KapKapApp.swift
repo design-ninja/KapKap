@@ -3,17 +3,10 @@ import UniformTypeIdentifiers
 
 @main
 struct KapKapApp: App {
-    @State private var store = CaptureStore()
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-
-    /// The panel carries the selection controls, so it has to be on screen first.
-    private func selectArea() {
-        guard store.phase == .idle else { return }
-        openWindow(id: "recorder")
-        NSApp.activate(ignoringOtherApps: true)
-        store.selectArea()
-    }
+    private var store: CaptureStore { delegate.store }
 
     private func openVideo() {
         let panel = NSOpenPanel()
@@ -22,43 +15,35 @@ struct KapKapApp: App {
         openWindow(id: "editor", value: url)
     }
 
+    // The recorder is an AppKit panel (RecorderPanel), so every scene here opens only on demand.
     var body: some Scene {
-        Window("KapKap", id: "recorder") {
-            RecorderView(store: store)
-                .windowDismissBehavior(.enabled)
-                .onAppear {
-                    delegate.selectArea = { selectArea() }
-                    delegate.store = store
-                }
-        }
-        .windowStyle(.plain)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
-        .defaultLaunchBehavior(.presented)
-        .commands {
-            CommandGroup(replacing: .appInfo) {
-                Button("About KapKap") { AppAbout.show() }
-                Button("Check for Updates…") { store.updater.checkForUpdates() }
-                    .disabled(!store.updater.canCheckForUpdates)
-            }
-            CommandGroup(replacing: .newItem) {
-                Button("Select Recording Area") { selectArea() }
-                    .keyboardShortcut(store.selectionHotKey.shortcut.keyboardShortcut).disabled(store.busy)
-                Divider()
-                Button("Open Video…") { openVideo() }.keyboardShortcut("o")
-                Button("Show Recordings Folder") {
-                    guard let folder = try? RecordingLibrary.directory() else { return }
-                    NSWorkspace.shared.activateFileViewerSelecting([folder])
-                }
-            }
-        }
-
+        let _ = delegate.configureWindowActions(openWindow: openWindow, openSettings: openSettings)
         Window("Recordings", id: "recordings") { LibraryView(store: store) }
             .defaultSize(width: 560, height: 380)
+            .defaultLaunchBehavior(.suppressed)
+            .commands {
+                CommandGroup(replacing: .appInfo) {
+                    Button("About KapKap") { AppAbout.show() }
+                    Button("Check for Updates…") { store.updater.checkForUpdates() }
+                        .disabled(!store.updater.canCheckForUpdates)
+                }
+                CommandGroup(replacing: .newItem) {
+                    Button("Select Recording Area") { delegate.selectArea() }
+                        .keyboardShortcut(store.selectionHotKey.shortcut.keyboardShortcut).disabled(store.busy)
+                    Divider()
+                    Button("Open Video…") { openVideo() }.keyboardShortcut("o")
+                    Button("Show Recordings Folder") {
+                        guard let folder = try? RecordingLibrary.directory() else { return }
+                        NSWorkspace.shared.activateFileViewerSelecting([folder])
+                    }
+                }
+            }
 
         WindowGroup("Editor", id: "editor", for: URL.self) { $url in
             if let url { EditorView(url: url, store: store) }
-        }.defaultSize(width: 900, height: 620)
+        }
+        .defaultSize(width: 900, height: 620)
+        .defaultLaunchBehavior(.suppressed)
 
         Settings { SettingsView(store: store) }
     }
@@ -66,23 +51,31 @@ struct KapKapApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
-    weak var store: CaptureStore? {
-        didSet { installRecordingShortcut() }
+    let store = CaptureStore()
+    private var recorder: RecorderPanel?
+    private var openWindow: OpenWindowAction?
+    private var openSettings: OpenSettingsAction?
+
+    func configureWindowActions(openWindow: OpenWindowAction, openSettings: OpenSettingsAction) {
+        self.openWindow = openWindow
+        self.openSettings = openSettings
     }
-    var selectArea: (() -> Void)?
-    private var shortcutInstalled = false
+
+    /// The panel carries the selection controls, so it has to be on screen first.
+    func selectArea() {
+        guard store.phase == .idle else { return }
+        store.showRecorder()
+        store.selectArea()
+    }
 
     private func installRecordingShortcut() {
-        guard !shortcutInstalled, let store else { return }
-        shortcutInstalled = true
         let shortcut = store.recordingHotKey
         shortcut.action = { [weak self] in
             guard let store = self?.store else { return }
             Task { @MainActor in
                 if store.active {
                     await store.stop()
-                    store.recorderWindow?.makeKeyAndOrderFront(nil)
-                    NSApp.activate(ignoringOtherApps: true)
+                    store.showRecorder()
                 } else if store.phase == .idle {
                     await store.start()
                 }
@@ -90,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         let status = shortcut.register()
         if status != noErr, let error = shortcut.error { store.error = UserMessage(text: error) }
-        store.selectionHotKey.action = { [weak self] in self?.selectArea?() }
+        store.selectionHotKey.action = { [weak self] in self?.selectArea() }
         if store.selectionHotKey.register() != noErr, let error = store.selectionHotKey.error {
             store.error = UserMessage(text: error)
         }
@@ -98,10 +91,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureCloseCommand(in: NSApp.mainMenu)
+        let recorder = RecorderPanel(store: store, openWindow: openWindow, openSettings: openSettings)
+        self.recorder = recorder
+        recorder.orderFrontRegardless()
+        installRecordingShortcut()
         ScratchExports.pruneAtLaunch()
         Task { @MainActor in
             let recovered = await RecordingLibrary.recoverPending()
-            guard !recovered.isEmpty, let store = self.store else { return }
+            guard !recovered.isEmpty else { return }
+            let store = self.store
             store.refreshLibrary()
             store.error = UserMessage(text: recovered.count == 1
                 ? "An unfinished recording from an earlier session was recovered. It is in Recent recordings."
@@ -124,13 +122,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     private var windowToClose: NSWindow? {
-        NSApp.keyWindow ?? NSApp.mainWindow ?? store?.recorderWindow.flatMap { $0.isVisible ? $0 : nil }
+        NSApp.keyWindow ?? NSApp.mainWindow ?? store.recorderWindow.flatMap { $0.isVisible ? $0 : nil }
     }
 
     @objc private func closeWindow(_ sender: Any?) {
         guard let window = windowToClose else { return }
         if EditorCloseCoordinator.intercept(window) { return }
-        if window === store?.recorderWindow {
+        if window === store.recorderWindow {
             window.close()
         } else {
             window.performClose(sender)
@@ -143,8 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        store?.recorderWindow?.makeKeyAndOrderFront(nil)
-        sender.activate(ignoringOtherApps: true)
+        store.showRecorder()
         return true
     }
 
@@ -152,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// Quitting, logging out or shutting down saves a running recording first.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let store, store.busy else { return .terminateNow }
+        guard store.busy else { return .terminateNow }
         Task { @MainActor in
             await store.finishForTermination()
             sender.reply(toApplicationShouldTerminate: true)
