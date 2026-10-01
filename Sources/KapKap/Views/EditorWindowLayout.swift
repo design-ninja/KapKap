@@ -75,6 +75,12 @@ struct EditorWindowLayout: NSViewRepresentable {
                     close.target = self
                     close.action = #selector(requestClose)
                 }
+                // SwiftUI finishes attaching the new window before it can take focus reliably.
+                DispatchQueue.main.async { [weak self, weak window] in
+                    guard let window, self?.window === window else { return }
+                    window.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
             }
             guard !didSize, let aspectRatio, aspectRatio > 0 else { return }
             didSize = true
