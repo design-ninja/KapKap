@@ -138,6 +138,12 @@ Needs Apple Silicon and Xcode 27. The first build compiles the bundled FFmpeg fr
 takes a few minutes. Signing, debug builds, architecture, tests and releases are covered in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## License
+
+KapKap is [MIT-licensed](LICENSE). The bundled FFmpeg and its codecs keep their own licenses (GPL
+for FFmpeg, x264 and x265); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Each release
+ships their sources.
+
 ## Acknowledgements
 
 Thank you to [Kap](https://github.com/wulkano/Kap) by [Wulkano](https://wulkano.com) and its
