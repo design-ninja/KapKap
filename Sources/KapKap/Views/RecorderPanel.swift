@@ -8,7 +8,8 @@ final class RecorderPanel: NSPanel {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView, .closable],
                    backing: .buffered, defer: false)
         isFloatingPanel = true
-        level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+        // Stay above the selection canvas, but below system menus and tooltips.
+        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary]
         becomesKeyOnlyIfNeeded = false
         hidesOnDeactivate = false
@@ -28,6 +29,15 @@ final class RecorderPanel: NSPanel {
     /// Borderless windows refuse key by default, and a popover over a window that is not key draws
     /// every control inactive.
     override var canBecomeKey: Bool { true }
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        var nextFrame = frameRect
+        if frame.width > 0, frame.size != nextFrame.size {
+            nextFrame.origin.x = frame.midX - nextFrame.width / 2
+            nextFrame = constrainFrameRect(nextFrame, to: screen)
+        }
+        super.setFrame(nextFrame, display: flag)
+    }
 
     /// Ignores the menu bar and Dock, keeping the panel only inside the physical screen.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {

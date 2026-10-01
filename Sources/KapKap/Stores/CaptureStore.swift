@@ -117,6 +117,8 @@ final class CaptureStore {
 
     func startSelectedArea() {
         guard phase == .selecting, let target = selectionModel.target() else { return }
+        // Hide before changing phase, so the main controls never flash while start() is queued.
+        recorderWindow?.orderOut(nil)
         selection.close()
         phase = .idle
         self.target = target

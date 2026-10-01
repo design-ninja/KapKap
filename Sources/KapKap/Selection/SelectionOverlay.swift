@@ -15,7 +15,7 @@ final class SelectionOverlay {
                                        backing: .buffered, defer: false)
             panel.isOpaque = false
             panel.backgroundColor = .clear
-            panel.level = .screenSaver
+            panel.level = .statusBar
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isReleasedWhenClosed = false
             panel.acceptsMouseMovedEvents = true
