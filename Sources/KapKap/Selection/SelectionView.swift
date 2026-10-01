@@ -25,7 +25,9 @@ struct SelectionView: View {
                     if !selection.isEmpty { shade.addRect(selection) }
                     context.fill(shade, with: .color(.black.opacity(0.35)), style: FillStyle(eoFill: true))
                     if !selection.isEmpty {
-                        context.stroke(Path(selection), with: .color(.white), lineWidth: 1)
+                        let pixel = 1 / scale
+                        let border = selection.insetBy(dx: -pixel / 2, dy: -pixel / 2)
+                        context.stroke(Path(border), with: .color(.white), lineWidth: pixel)
                         for point in corners(selection) + SelectionEdge.allCases.map({ $0.point(in: selection) }) {
                             context.fill(Path(ellipseIn: CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)),
                                          with: .color(.white))
@@ -64,8 +66,7 @@ struct SelectionView: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.95))
                         .padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.12)))
+                        .modifier(RecorderGlass(cornerRadius: 16))
                         .position(x: geometry.size.width / 2, y: 54)
                         .allowsHitTesting(false)
                 }
@@ -76,8 +77,8 @@ struct SelectionView: View {
                         .padding(.horizontal, 7).padding(.vertical, 4)
                         .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 6))
                         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.12)))
-                        .position(x: min(pointer.x + 55, geometry.size.width - 60),
-                                  y: min(pointer.y + 18, geometry.size.height - 16))
+                        .position(x: min(pointer.x + 38, geometry.size.width - 60),
+                                  y: min(pointer.y + 14, geometry.size.height - 16))
                         .allowsHitTesting(false)
                 }
             }

@@ -38,6 +38,7 @@ struct EditorExportBar: View {
                 Rectangle().fill(.white.opacity(0.09)).frame(height: 1)
             }
         }
+        .task(id: model.estimateKey) { await model.estimateSize() }
     }
 
     private var sizeField: some View {
@@ -93,17 +94,18 @@ struct EditorExportBar: View {
         .disabled(unavailable)
     }
 
-    /// The expected file size, dimmed while a new estimate is on its way.
+    @ViewBuilder
     private var summary: some View {
-        Text(model.estimatedBytes.map { "≈ " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "≈ …")
+        if let bytes = model.estimatedBytes {
+            let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            Text("≈ " + size)
             .monospacedDigit().lineLimit(1)
             .font(.system(size: 11))
-            .foregroundStyle(.white.opacity(model.estimating ? 0.25 : 0.45))
-            .animation(.easeOut(duration: 0.15), value: model.estimating)
+            .foregroundStyle(.white.opacity(0.45))
             .padding(.leading, 4)
             .help("Estimated file size, from a short test encode with these settings")
-            .accessibilityLabel(model.estimatedBytes.map { "Estimated size " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Estimating size")
-            .task(id: model.estimateKey) { await model.estimateSize() }
+            .accessibilityLabel("Estimated size " + size)
+        }
     }
 
     private static func title(for quality: ExportQuality) -> String {

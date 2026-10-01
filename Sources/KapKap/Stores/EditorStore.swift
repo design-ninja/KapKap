@@ -3,6 +3,7 @@ import AVFoundation
 import Observation
 import CaptureCore
 import UniformTypeIdentifiers
+import OSLog
 
 @MainActor @Observable
 final class EditorStore {
@@ -30,7 +31,10 @@ final class EditorStore {
     /// Whether this export actually runs on the media engine; other formats ignore the choice.
     var usesHardware: Bool { hardware && format.offersHardwareEncoding }
     /// Roughly how big the export will be, from a short test encode; nil until one has finished.
-    private(set) var estimatedBytes: Int64?
+    var estimatedBytes: Int64? { estimateResult?.key == estimateKey ? estimateResult?.bytes : nil }
+    private var estimateResult: (key: [AnyHashable], bytes: Int64)?
+    private var estimateRevision = 0
+    private static let estimateLogger = Logger(subsystem: "com.lirik.KapKap", category: "ExportEstimate")
     private(set) var estimating = false
     /// Everything that changes the size of the exported file.
     var estimateKey: [AnyHashable] {
@@ -291,11 +295,15 @@ final class EditorStore {
 
     /// Encodes up to two seconds from the middle of the trimmed range with the current settings and
     /// scales the result to the full length. Waits out quick edits, such as dragging a trim handle.
-    func estimateSize() async {
+    func estimateSize(executable: URL? = ExportService.executable) async {
+        estimateRevision += 1
+        let revision = estimateRevision
+        defer { if estimateRevision == revision { estimating = false } }
         guard loaded, !exporting else { return }
+        guard estimatedBytes == nil else { return }
+        let key = estimateKey
         estimating = true
-        defer { if !Task.isCancelled { estimating = false } }
-        try? await Task.sleep(for: .milliseconds(500))
+        try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
         let length = end - start
         let sample = min(length, 2)
@@ -307,12 +315,14 @@ final class EditorStore {
             .appendingPathComponent("KapKap-estimate-\(UUID().uuidString).\(format.fileExtension)")
         defer { try? FileManager.default.removeItem(at: destination) }
         do {
-            try await ExportService.export(input: url, destination: destination, options: options)
+            try await ExportService.export(input: url, destination: destination, options: options, executable: executable)
             let bytes = try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-            guard !Task.isCancelled, sample > 0 else { return }
-            estimatedBytes = Int64(Double(bytes) * length / sample)
+            guard !Task.isCancelled, sample > 0, estimateRevision == revision, estimateKey == key else { return }
+            estimateResult = (key, Int64(Double(bytes) * length / sample))
         } catch {
-            if !Task.isCancelled { estimatedBytes = nil }
+            if !Task.isCancelled {
+                Self.estimateLogger.error("Size estimate failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 }

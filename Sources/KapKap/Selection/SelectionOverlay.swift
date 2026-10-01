@@ -15,6 +15,7 @@ final class SelectionOverlay {
                                        backing: .buffered, defer: false)
             panel.isOpaque = false
             panel.backgroundColor = .clear
+            panel.hasShadow = false
             panel.level = .statusBar
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isReleasedWhenClosed = false
@@ -23,7 +24,7 @@ final class SelectionOverlay {
                                                                       screenFrame: screen.frame,
                                                                       scale: screen.backingScaleFactor))
             panels.append(panel)
-            panel.orderFrontRegardless()
+            CaptureOverlayTransition.show(panel)
         }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53 {
@@ -40,7 +41,7 @@ final class SelectionOverlay {
     func close() {
         if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
         escapeMonitor = nil
-        panels.forEach { $0.close() }
+        panels.forEach { CaptureOverlayTransition.close($0) }
         panels.removeAll()
         NSCursor.arrow.set()
     }

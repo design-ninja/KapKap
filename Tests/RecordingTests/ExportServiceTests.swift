@@ -43,6 +43,54 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(try hiddenFiles(), [])
     }
 
+    @MainActor func testEditorEstimateAppearsAfterLoadingAndTracksSettings() async throws {
+        let ffmpeg = try exportTool()
+        let input = try source(seconds: 1, ffmpeg: ffmpeg)
+        let hardware = ExportPreferences.hardware
+        defer { ExportPreferences.hardware = hardware }
+        let model = EditorStore(url: input)
+        model.hardware = false
+        await model.load()
+        XCTAssertTrue(model.loaded)
+        XCTAssertNil(model.error)
+        await model.estimateSize(executable: ffmpeg)
+        XCTAssertGreaterThan(try XCTUnwrap(model.estimatedBytes), 1000)
+        XCTAssertFalse(model.estimating)
+
+        model.exporting = true
+        XCTAssertNil(model.estimatedBytes)
+        await model.estimateSize(executable: ffmpeg)
+        XCTAssertFalse(model.estimating)
+        model.exporting = false
+        let previous = model.estimatedBytes
+        await model.estimateSize(executable: nil)
+        XCTAssertEqual(model.estimatedBytes, previous, "Reuse the completed estimate after exporting")
+
+        model.setExportWidth(160)
+        XCTAssertNil(model.estimatedBytes, "Hide the stale size as soon as settings change")
+        await model.estimateSize(executable: ffmpeg)
+        XCTAssertGreaterThan(try XCTUnwrap(model.estimatedBytes), 1000)
+    }
+
+    @MainActor func testCancelledEstimateResetsStateAndCanRestart() async throws {
+        let ffmpeg = try exportTool()
+        let input = try source(seconds: 1, ffmpeg: ffmpeg)
+        let hardware = ExportPreferences.hardware
+        defer { ExportPreferences.hardware = hardware }
+        let model = EditorStore(url: input)
+        model.hardware = false
+        await model.load()
+        let task = Task { await model.estimateSize(executable: ffmpeg) }
+        await Task.yield()
+        XCTAssertTrue(model.estimating)
+        task.cancel()
+        await task.value
+        XCTAssertFalse(model.estimating)
+        XCTAssertNil(model.estimatedBytes)
+        await model.estimateSize(executable: ffmpeg)
+        XCTAssertGreaterThan(try XCTUnwrap(model.estimatedBytes), 1000)
+    }
+
     private func hiddenFiles() throws -> [String] {
         try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix(".KapKap-") }
     }

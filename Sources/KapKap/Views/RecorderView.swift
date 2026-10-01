@@ -3,12 +3,16 @@ import AppKit
 
 struct RecorderView: View {
     @Bindable var store: CaptureStore
+    var windowAction: OpenWindowAction? = nil
+    var settingsAction: OpenSettingsAction? = nil
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @State private var showWindows = false
     @FocusState private var dimension: SelectionControlsView.Dimension?
     @Namespace private var panel
     private var selecting: Bool { store.phase == .selecting }
+    private var windows: OpenWindowAction { windowAction ?? openWindow }
+    private var settings: OpenSettingsAction { settingsAction ?? openSettings }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,11 +56,11 @@ struct RecorderView: View {
                             Image(systemName: store.phase == .paused ? "play.fill" : "pause.fill")
                         }.help(store.phase == .paused ? "Resume" : "Pause").disabled(store.changingPause)
                     } else {
-                        Button { store.refreshLibrary(); openWindow(id: "recordings") } label: {
+                        Button(action: showLibrary) {
                             Image(systemName: "clock.arrow.circlepath")
                         }.help("Recent recordings").accessibilityLabel("Recent recordings")
                     }
-                    Button { openSettings(); NSApp.activate(ignoringOtherApps: true) } label: {
+                    Button { settings(); NSApp.activate(ignoringOtherApps: true) } label: {
                         Image(systemName: "ellipsis")
                             .foregroundStyle(.white)
                     }
@@ -71,10 +75,8 @@ struct RecorderView: View {
         .onChange(of: showWindows) { _, shown in if shown { focusPanel() } }
         .background(StatusBarBridge(store: store, phase: store.phase, showRecorder: {
             store.showRecorder()
-        }, showLibrary: {
-            store.refreshLibrary(); openWindow(id: "recordings"); NSApp.activate(ignoringOtherApps: true)
-        }, showSettings: {
-            openSettings(); NSApp.activate(ignoringOtherApps: true)
+        }, showLibrary: showLibrary, showSettings: {
+            settings(); NSApp.activate(ignoringOtherApps: true)
         }))
         // Both states size to their own controls, so the edge padding reads the same in each.
         .fixedSize(horizontal: true, vertical: true)
@@ -91,7 +93,7 @@ struct RecorderView: View {
         } message: { Text(store.error?.text ?? "") }
         .task(id: store.latestRecording) {
             if let url = store.latestRecording {
-                openWindow(id: "editor", value: url)
+                windows(id: "editor", value: url)
                 store.latestRecording = nil
             }
         }
@@ -100,6 +102,16 @@ struct RecorderView: View {
     private func focusPanel() {
         NSApp.activate(ignoringOtherApps: true)
         store.showRecorder()
+    }
+
+    private func showLibrary() {
+        store.refreshLibrary()
+        windows(id: "recordings")
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "recordings" }) {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func record() {

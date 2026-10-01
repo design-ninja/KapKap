@@ -4,7 +4,7 @@ import SwiftUI
 /// The recorder floats in a non-activating panel, like Spotlight's or Raycast's: it takes key without
 /// bringing KapKap forward, and only such a panel may appear over another app's full-screen space.
 final class RecorderPanel: NSPanel {
-    init(store: CaptureStore) {
+    init(store: CaptureStore, openWindow: OpenWindowAction? = nil, openSettings: OpenSettingsAction? = nil) {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView, .closable],
                    backing: .buffered, defer: false)
         isFloatingPanel = true
@@ -18,7 +18,8 @@ final class RecorderPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         appearance = NSAppearance(named: .darkAqua)
-        let content = NSHostingView(rootView: RecorderView(store: store))
+        let content = NSHostingView(rootView: RecorderView(store: store,
+                                                          windowAction: openWindow, settingsAction: openSettings))
         contentView = content
         setContentSize(content.fittingSize)
         center()

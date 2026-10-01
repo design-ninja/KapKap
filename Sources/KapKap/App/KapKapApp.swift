@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 @main
 struct KapKapApp: App {
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     private var store: CaptureStore { delegate.store }
 
@@ -16,6 +17,7 @@ struct KapKapApp: App {
 
     // The recorder is an AppKit panel (RecorderPanel), so every scene here opens only on demand.
     var body: some Scene {
+        let _ = delegate.configureWindowActions(openWindow: openWindow, openSettings: openSettings)
         Window("Recordings", id: "recordings") { LibraryView(store: store) }
             .defaultSize(width: 560, height: 380)
             .defaultLaunchBehavior(.suppressed)
@@ -51,6 +53,13 @@ struct KapKapApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let store = CaptureStore()
     private var recorder: RecorderPanel?
+    private var openWindow: OpenWindowAction?
+    private var openSettings: OpenSettingsAction?
+
+    func configureWindowActions(openWindow: OpenWindowAction, openSettings: OpenSettingsAction) {
+        self.openWindow = openWindow
+        self.openSettings = openSettings
+    }
 
     /// The panel carries the selection controls, so it has to be on screen first.
     func selectArea() {
@@ -82,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureCloseCommand(in: NSApp.mainMenu)
-        let recorder = RecorderPanel(store: store)
+        let recorder = RecorderPanel(store: store, openWindow: openWindow, openSettings: openSettings)
         self.recorder = recorder
         recorder.orderFrontRegardless()
         installRecordingShortcut()
