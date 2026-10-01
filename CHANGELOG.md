@@ -6,6 +6,22 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The recorder panel, the area selection and the window picker appear over full-screen apps.
+- The selection and recording overlays fade in and out.
+- Development builds are a separate app, KapKap Debug, with their own privacy permissions, so
+  they no longer conflict with an installed copy.
+
+### Fixed
+
+- Starting a selected area no longer flashes the recorder's main controls before recording.
+- The recorder panel stays centered when it changes size, and system menus and tooltips show
+  above it.
+- The outline around a chosen window stays inside the window, also at the edges of the screen.
+- The editor's size estimate never shows a size for older settings, and comes back after an export.
+- The editor for a new recording opens in front.
+
 ## [0.5.0] - 2026-09-30
 
 ### Added
