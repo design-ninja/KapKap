@@ -25,9 +25,15 @@ enum ExportService {
             }
         } onCancel: { process.cancel() }
         try Task.checkCancellation()
+        var saved = destination
         if FileManager.default.fileExists(atPath: destination.path) {
-            _ = try FileManager.default.replaceItemAt(destination, withItemAt: working)
+            saved = try FileManager.default.replaceItemAt(destination, withItemAt: working) ?? destination
         } else { try FileManager.default.moveItem(at: working, to: destination) }
+        // iCloud Drive flags dot-files as hidden and the flag survives the rename, which left exports
+        // to an iCloud Desktop greyed out in Finder and missing from the Desktop itself.
+        var visible = URLResourceValues()
+        visible.isHidden = false
+        try saved.setResourceValues(visible)
     }
 }
 

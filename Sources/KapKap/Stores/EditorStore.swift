@@ -16,11 +16,16 @@ final class EditorStore {
     var sourceWidth = 1280
     var sourceHeight = 720
     var exportHeight: Int { max(2, Int((Double(width) * Double(sourceHeight) / Double(sourceWidth) / 2).rounded()) * 2) }
-    var fps = 30
+    var fps = 30 {
+        // Loading sets the rate from the recording; only the user's own choice is remembered.
+        didSet { if loaded { ExportPreferences.frameRate = fps < sourceFPS ? fps : nil } }
+    }
     private(set) var sourceFPS = 30
     private var audioTracks = 1
     var frameRateChoices: [Int] { FrameRate.choices(upTo: sourceFPS) }
-    var format = ExportFormat.mp4
+    var format = ExportPreferences.format {
+        didSet { ExportPreferences.format = format }
+    }
     var quality = ExportPreferences.quality {
         didSet { ExportPreferences.quality = quality }
     }
@@ -49,7 +54,9 @@ final class EditorStore {
     var copiedToClipboard = false
     var error: UserMessage?
     var loaded = false
-    var copyDestination = true
+    var copyDestination = ExportPreferences.copyDestination {
+        didSet { ExportPreferences.copyDestination = copyDestination }
+    }
     var confirmingDiscard = false
     private var closeApproved = false
     var trimmed: Bool { start > 0 || end < duration }
@@ -112,6 +119,10 @@ final class EditorStore {
                     }
                 }
                 sourceFPS = fps
+                if let remembered = ExportPreferences.frameRate, remembered < sourceFPS,
+                   frameRateChoices.contains(remembered) {
+                    fps = remembered
+                }
             }
             audioTracks = try await asset.loadTracks(withMediaType: .audio).count
             loaded = true

@@ -6,6 +6,16 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The editor remembers the last export format, frame rate and destination (Copy to Clipboard or
+  Save to File) instead of resetting them for every recording.
+
+### Fixed
+
+- Exports saved to a Desktop or folder synced with iCloud Drive are no longer hidden and greyed
+  out in Finder.
+
 ## [0.5.1] - 2026-10-01
 
 ### Changed
