@@ -7,6 +7,9 @@ enum ExportPreferences {
     private static let loopKey = "loopExports"
     private static let qualityKey = "exportQuality"
     private static let hardwareKey = "hardwareEncoding"
+    private static let formatKey = "exportFormat"
+    private static let frameRateKey = "exportFrameRate"
+    private static let copyDestinationKey = "exportToClipboard"
 
     /// Where the save dialog opens: the Desktop until the user picks another folder.
     static var directory: URL {
@@ -52,5 +55,24 @@ enum ExportPreferences {
     static var hardware: Bool {
         get { UserDefaults.standard.bool(forKey: hardwareKey) }
         set { UserDefaults.standard.set(newValue, forKey: hardwareKey) }
+    }
+
+    /// The last format chosen in the editor; MP4 until one is picked.
+    static var format: ExportFormat {
+        get { UserDefaults.standard.string(forKey: formatKey).flatMap(ExportFormat.init(rawValue:)) ?? .mp4 }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: formatKey) }
+    }
+
+    /// A reduced export rate, or nil for the recording's own rate. Recordings differ in rate, so a
+    /// rate the next one cannot reach falls back to its native rate.
+    static var frameRate: Int? {
+        get { UserDefaults.standard.object(forKey: frameRateKey) as? Int }
+        set { UserDefaults.standard.set(newValue, forKey: frameRateKey) }
+    }
+
+    /// Whether the export button copies to the clipboard (the default) or saves to a file.
+    static var copyDestination: Bool {
+        get { UserDefaults.standard.object(forKey: copyDestinationKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: copyDestinationKey) }
     }
 }
