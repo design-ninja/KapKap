@@ -17,7 +17,7 @@ public enum ExportFormat: String, CaseIterable, Identifiable, Sendable {
     public var offersHardwareEncoding: Bool { self == .mp4 || self == .hevc }
 }
 
-/// How hard video formats compress: a smaller file, or a sharper picture. GIF and APNG ignore it.
+/// How hard exports compress: a smaller file, or a sharper picture. APNG ignores it.
 public enum ExportQuality: String, CaseIterable, Identifiable, Sendable {
     case smaller, balanced, best
     public var id: String { rawValue }
@@ -35,6 +35,16 @@ public enum ExportQuality: String, CaseIterable, Identifiable, Sendable {
         case .smaller: return smaller
         case .balanced: return balanced
         case .best: return best
+        }
+    }
+
+    /// Gifsicle's `--lossy` for GIF, or nil to keep the GIF FFmpeg wrote. Balanced matches the size and
+    /// SSIM of Kap's "Lossy GIF compression" on screen recordings, with less speckle in flat areas.
+    var gifLossiness: Int? {
+        switch self {
+        case .smaller: return 50
+        case .balanced: return 20
+        case .best: return nil
         }
     }
 
@@ -119,6 +129,14 @@ public struct ExportOptions: Sendable {
             }
         }
         return args + [output.path]
+    }
+
+    /// GIF only: how Gifsicle shrinks the file FFmpeg wrote, or nil to keep it as it is. `--gamma=1`
+    /// measures color errors as Gifsicle did before 1.96, which Kap's `--lossy=50` relied on; with the
+    /// newer sRGB measure `--lossy` barely shrinks screen recordings.
+    public func compressionArguments(input: URL, output: URL) -> [String]? {
+        guard format == .gif, let lossy = quality.gifLossiness else { return nil }
+        return ["-O3", "--gamma=1", "--lossy=\(lossy)", "-o", output.path, input.path]
     }
 
     /// FFmpeg rejects exponent notation, which `String(Double)` produces below 0.0001 (a trim handle

@@ -24,6 +24,9 @@ On the first run `script/build_ffmpeg.sh` downloads the pinned sources of FFmpeg
 executable for macOS 15 with only what exports need. It takes a few minutes; later builds reuse it
 from `.build/ffmpeg`. The app does not need Homebrew at runtime.
 
+`script/build_gifsicle.sh` builds the Gifsicle that shrinks GIF exports the same way, from a pinned
+release into `.build/gifsicle`, and the bundle carries it next to FFmpeg.
+
 ### Debug and release copies
 
 Development builds are staged at `dist/KapKap Debug.app` with bundle ID `com.lirik.KapKap.debug`;
@@ -63,7 +66,7 @@ lifecycle, and macOS file dialogs / Finder integration.
 recordings interrupted by the system, recovery of unfinished files, restoring the last area,
 shortcut registration and labels, clean-up of clipboard exports, and encode/decode round trips for
 all six export formats, looping, mixing of two audio tracks, the size order of the three export
-qualities, export progress and cancellation, using generated fixtures.
+qualities, lossy GIF compression, export progress and cancellation, using generated fixtures.
 
 Build the app first so the bundled export executable is available;
 `KAPKAP_REQUIRE_EXPORT_TOOLS=1 swift test` fails instead of skipping the export tests when it is not.

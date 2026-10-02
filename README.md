@@ -19,6 +19,7 @@
 - 🖱️ **Cursor and clicks:** show the cursor and highlight clicks
 - ✂️ **Editor:** trim, resize, change the frame rate and quality, mute, see the file size before you export
 - 📦 **Export:** MP4, GIF, APNG, WebM, HEVC or AV1, with fast hardware encoding for MP4 and HEVC
+  and lossy compression for smaller GIFs
 - ⌨️ **Global shortcuts:** start, stop and select an area from any app
 - 🛟 **Never lose a take:** recordings survive a crash, a quit or a shutdown
 - 🔄 **Updates itself**, and lives in the menu bar
@@ -75,8 +76,14 @@ Audio, cursor, click highlighting, frame rate and recording quality live in Sett
 <details>
 <summary><b>Editing and exporting</b></summary>
 
-- **Quality:** smaller file, balanced or best. See [docs/export-quality.md](docs/export-quality.md)
-  for what each one means.
+- **Remembered settings:** the format, frame rate, quality and destination you chose last are
+  kept for the next recording. GIF and video keep separate qualities, so a light GIF and a sharp
+  MP4 don't overwrite each other. A reduced frame rate the next recording can't reach falls back to
+  its native rate.
+- **Quality:** smaller file, balanced or best, for video and GIF. Balanced and Smaller file shrink
+  GIFs with Gifsicle, like Kap's "Lossy GIF compression": Balanced makes them about a quarter
+  smaller at the same quality, and Best quality leaves them as FFmpeg wrote them. See
+  [docs/export-quality.md](docs/export-quality.md) for what each one means.
 - **Fast Hardware Encoding** (MP4 and HEVC, in the quality menu) uses the Mac's media engine: two to
   four times faster for game and video footage, at a bigger file for the same detail.
 - **Where it goes:** save, copy to the clipboard, or open straight in another app (Open With). The
@@ -122,7 +129,6 @@ KapKap covers recording, trimming and exporting, and leaves out some of what Kap
 
 - **No plugins,** so none of Kap's share plugins (Dropbox, Giphy, Streamable, Imgur and others),
   editing or recording plugins. Exports can be saved, copied or opened in another app.
-- **No lossy GIF compression:** Kap shrinks GIFs with gifsicle; KapKap exports them losslessly.
 - **No Exports window** listing running and finished exports; progress shows in the editor.
 - **Apple Silicon only,** no Intel Macs.
 
@@ -134,21 +140,21 @@ brew install pkg-config cmake meson ninja
 swift test
 ```
 
-Needs Apple Silicon and Xcode 27. The first build compiles the bundled FFmpeg from source, which
-takes a few minutes. Signing, debug builds, architecture, tests and releases are covered in
+Needs Apple Silicon and Xcode 27. The first build compiles the bundled FFmpeg and Gifsicle from
+source, which takes a few minutes. Signing, debug builds, architecture, tests and releases are covered in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
-KapKap is [MIT-licensed](LICENSE). The bundled FFmpeg and its codecs keep their own licenses (GPL
-for FFmpeg, x264 and x265); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Each release
-ships their sources.
+KapKap is [MIT-licensed](LICENSE). The bundled FFmpeg, its codecs and Gifsicle keep their own
+licenses (GPL for FFmpeg, x264, x265 and Gifsicle); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Each release ships their sources.
 
 ## Acknowledgements
 
 Thank you to [Kap](https://github.com/wulkano/Kap) by [Wulkano](https://wulkano.com) and its
 contributors: KapKap is inspired by it. Kap is MIT-licensed; its notice and the licenses of
-everything bundled, including FFmpeg, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+everything bundled, including FFmpeg and Gifsicle, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 The screenshot's background is [Deserto de Huacachina](https://unsplash.com/photos/brown-sand-dunes-under-white-sky-during-daytime-GeReAnOMiZ8)
 by [Ze Paulo](https://unsplash.com/@euzepaulo) on Unsplash.

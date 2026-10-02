@@ -9,6 +9,27 @@ maps to a constant rate factor per encoder; lower keeps more detail and makes a 
 | Balanced (default) | CRF 20 | CRF 22 | CRF 32 |
 | Best quality | CRF 14 | CRF 16 | CRF 22 |
 
+## GIF
+
+FFmpeg writes every GIF with a 256-color palette, and Best quality keeps that file as it is. Balanced
+and Smaller file then run the bundled Gifsicle with `-O3 --gamma=1 --lossy=20` or `--lossy=50`,
+which reuses runs of nearly matching pixels to compress better.
+
+Kap runs Gifsicle 1.92 with `--lossy=50` when its "Lossy GIF compression" setting is on. Gifsicle
+1.96 measures color errors in sRGB by default, which makes the same `--lossy` barely shrink screen
+recordings (3–7%); `--gamma=1` restores the earlier measure. Measured on 2026-10-02 on two 6-second
+KapKap recordings of text-heavy interfaces at half size and 15 fps, SSIM against the source frames:
+
+| Export | Recording 1 bytes | SSIM | Recording 2 bytes | SSIM |
+| --- | ---: | ---: | ---: | ---: |
+| Best quality (FFmpeg only) | 1,419,383 | 0.9988 | 913,831 | 0.9959 |
+| Kap, Gifsicle 1.92 `--lossy=50` | 1,052,680 | 0.9828 | 667,692 | 0.9812 |
+| Balanced, `--gamma=1 --lossy=20` | 1,012,540 | 0.9827 | 688,845 | 0.9799 |
+| Smaller file, `--gamma=1 --lossy=50` | 946,901 | 0.9552 | 649,680 | 0.9625 |
+
+Balanced matches Kap's size and SSIM, with less speckle in flat backgrounds. Smaller file shows
+visible speckle there.
+
 ## Fast Hardware Encoding
 
 MP4 and HEVC can be encoded on the Mac's media engine (VideoToolbox) instead of x264 or x265. It is

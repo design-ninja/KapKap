@@ -24,12 +24,16 @@ final class EditorStore {
     private var audioTracks = 1
     var frameRateChoices: [Int] { FrameRate.choices(upTo: sourceFPS) }
     var format = ExportPreferences.format {
-        didSet { ExportPreferences.format = format }
+        didSet {
+            ExportPreferences.format = format
+            quality = ExportPreferences.quality(for: format)
+        }
     }
-    var quality = ExportPreferences.quality {
-        didSet { ExportPreferences.quality = quality }
+    /// Remembered separately for GIF and for video formats.
+    var quality = ExportPreferences.quality(for: ExportPreferences.format) {
+        didSet { ExportPreferences.setQuality(quality, for: format) }
     }
-    var offersQuality: Bool { format != .gif && format != .apng }
+    var offersQuality: Bool { format != .apng }
     var hardware = ExportPreferences.hardware {
         didSet { ExportPreferences.hardware = hardware }
     }

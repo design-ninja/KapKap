@@ -8,27 +8,42 @@ enum ExportService {
         return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
     }
 
-    /// `progress` receives the finished share, 0 to 1, from the encoder's own progress report.
+    /// `progress` receives the finished share, 0 to 1, from the encoder's own progress report. A GIF is
+    /// then shrunk by the Gifsicle bundled next to `executable`, which takes the last part of the bar.
     static func export(input: URL, destination: URL, options: ExportOptions, executable: URL? = executable,
                        progress: (@Sendable (Double) -> Void)? = nil) async throws {
-        let working = destination.deletingLastPathComponent().appendingPathComponent(".KapKap-\(UUID().uuidString).\(options.format.fileExtension)")
-        defer { try? FileManager.default.removeItem(at: working) }
-        guard let executable else {
-            throw CaptureError.message("The ARM export tools are missing from this build. Rebuild using script/build_and_run.sh.")
+        let folder = destination.deletingLastPathComponent()
+        let working = folder.appendingPathComponent(".KapKap-\(UUID().uuidString).\(options.format.fileExtension)")
+        let compressed = folder.appendingPathComponent(".KapKap-\(UUID().uuidString).\(options.format.fileExtension)")
+        defer {
+            try? FileManager.default.removeItem(at: working)
+            try? FileManager.default.removeItem(at: compressed)
         }
+        let missing = CaptureError.message("The ARM export tools are missing from this build. Rebuild using script/build_and_run.sh.")
+        guard let executable else { throw missing }
         let arguments = try ["-progress", "pipe:1", "-nostats"] + options.arguments(input: input, output: working)
+        let compression = options.compressionArguments(input: working, output: compressed)
+        let gifsicle = executable.deletingLastPathComponent().appendingPathComponent("gifsicle")
+        if compression != nil, !FileManager.default.isExecutableFile(atPath: gifsicle.path) { throw missing }
+        // Gifsicle reports no progress and takes about a quarter of a GIF export.
+        let encodingShare = compression == nil ? 1.0 : 0.75
         let process = ExportProcess()
         let length = options.end - options.start
         try await withTaskCancellationHandler {
             try await process.run(executable: executable, arguments: arguments) { seconds in
-                progress?(min(1, max(0, seconds / length)))
+                progress?(min(1, max(0, seconds / length)) * encodingShare)
+            }
+            if let compression {
+                try await process.run(executable: gifsicle, arguments: compression) { _ in }
+                progress?(1)
             }
         } onCancel: { process.cancel() }
         try Task.checkCancellation()
+        let result = compression == nil ? working : compressed
         var saved = destination
         if FileManager.default.fileExists(atPath: destination.path) {
-            saved = try FileManager.default.replaceItemAt(destination, withItemAt: working) ?? destination
-        } else { try FileManager.default.moveItem(at: working, to: destination) }
+            saved = try FileManager.default.replaceItemAt(destination, withItemAt: result) ?? destination
+        } else { try FileManager.default.moveItem(at: result, to: destination) }
         // iCloud Drive flags dot-files as hidden and the flag survives the rename, which left exports
         // to an iCloud Desktop greyed out in Finder and missing from the Desktop itself.
         var visible = URLResourceValues()
