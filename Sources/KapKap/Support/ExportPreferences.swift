@@ -6,6 +6,7 @@ enum ExportPreferences {
     private static let directoryKey = "exportDirectory"
     private static let loopKey = "loopExports"
     private static let qualityKey = "exportQuality"
+    private static let gifQualityKey = "gifExportQuality"
     private static let hardwareKey = "hardwareEncoding"
     private static let formatKey = "exportFormat"
     private static let frameRateKey = "exportFrameRate"
@@ -45,10 +46,18 @@ enum ExportPreferences {
         set { UserDefaults.standard.set(newValue, forKey: loopKey) }
     }
 
-    /// The last quality chosen in the editor, reused for the next export.
-    static var quality: ExportQuality {
-        get { UserDefaults.standard.string(forKey: qualityKey).flatMap(ExportQuality.init(rawValue:)) ?? .balanced }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: qualityKey) }
+    /// The last quality chosen in the editor for GIF, or for video formats, reused for the next export
+    /// of that kind: a light GIF and a sharp MP4 are often wanted side by side.
+    static func quality(for format: ExportFormat) -> ExportQuality {
+        UserDefaults.standard.string(forKey: qualityKey(for: format)).flatMap(ExportQuality.init(rawValue:)) ?? .balanced
+    }
+
+    static func setQuality(_ quality: ExportQuality, for format: ExportFormat) {
+        UserDefaults.standard.set(quality.rawValue, forKey: qualityKey(for: format))
+    }
+
+    private static func qualityKey(for format: ExportFormat) -> String {
+        format == .gif ? gifQualityKey : qualityKey
     }
 
     /// MP4 and HEVC on the Mac's media engine: several times faster, bigger files. Off until chosen.

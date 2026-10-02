@@ -83,15 +83,15 @@ KAPKAP_CONFIGURATION=release KAPKAP_RELEASE=1 KAPKAP_APP="$APP" KAPKAP_INFO_PLIS
 ARCHIVE="$OUT/KapKap-$VERSION.zip"
 SOURCES_DIR="$ROOT_DIR/dist/release/sources"
 SOURCES="$OUT/KapKap-$VERSION-third-party-sources.tar"
-# The shipped sources are exactly the archives the bundled FFmpeg was built from (the GPL requires
-# FFmpeg's, x264's and x265's), and THIRD_PARTY_NOTICES.md names each of them.
+# The shipped sources are exactly the archives the bundled FFmpeg and Gifsicle were built from (the
+# GPL requires FFmpeg's, x264's, x265's and Gifsicle's), and THIRD_PARTY_NOTICES.md names each of them.
 SOURCE_ARCHIVES=()
 while IFS= read -r archive; do
     name="$(basename "$archive")"
     grep -qF "$name" THIRD_PARTY_NOTICES.md || fail "THIRD_PARTY_NOTICES.md does not list $name"
     SOURCE_ARCHIVES+=("$name")
-done < <(./script/build_ffmpeg.sh --sources)
-[[ ${#SOURCE_ARCHIVES[@]} -gt 0 ]] || fail "no FFmpeg source archives"
+done < <(./script/build_ffmpeg.sh --sources; ./script/build_gifsicle.sh --sources)
+[[ ${#SOURCE_ARCHIVES[@]} -gt 1 ]] || fail "no FFmpeg or Gifsicle source archives"
 tar -cf "$SOURCES" -C "$SOURCES_DIR" "${SOURCE_ARCHIVES[@]}"
 if [[ "$DRY_RUN" == "0" ]]; then
     # 3. Notarize, then staple so the app opens offline, then archive the stapled app.

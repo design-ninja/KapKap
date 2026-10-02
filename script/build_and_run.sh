@@ -72,7 +72,7 @@ if [[ "$RELEASE" != "1" ]]; then
 fi
 cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 rm -rf "$APP/Contents/Resources/Licenses" && cp -R "$ROOT_DIR/Resources/Licenses" "$APP/Contents/Resources/Licenses"
-# Builds FFmpeg from source the first time (a few minutes), then reuses it; adds its license texts.
+# Builds FFmpeg and Gifsicle from source the first time (a few minutes), then reuses them; adds their license texts.
 python3 "$ROOT_DIR/script/bundle_export_tools.py" "$APP"
 if [[ "$RELEASE" == "1" ]]; then
     # Notarization wants every binary signed by us with the hardened runtime and a timestamp,
@@ -84,6 +84,7 @@ if [[ "$RELEASE" == "1" ]]; then
     dsymutil "$APP/Contents/MacOS/KapKap" -o "$APP.dSYM" || echo "warning: no dSYM for KapKap" >&2
     strip -rSTx "$APP/Contents/MacOS/KapKap"
     sign "$APP/Contents/Resources/ffmpeg"
+    sign "$APP/Contents/Resources/gifsicle"
     SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
     sign "$SPARKLE/XPCServices/Installer.xpc"
     sign --preserve-metadata=entitlements "$SPARKLE/XPCServices/Downloader.xpc"

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Put KapKap's own FFmpeg build (script/build_ffmpeg.sh) and its license texts into the app bundle."""
+"""Put KapKap's own FFmpeg and Gifsicle builds (script/build_ffmpeg.sh, script/build_gifsicle.sh) and
+their license texts into the app bundle."""
 import pathlib
 import shutil
 import subprocess
@@ -39,3 +40,24 @@ licenses = resources / "Licenses/FFmpeg"
 shutil.rmtree(licenses, ignore_errors=True)
 shutil.copytree(ffmpeg.parent.parent / "licenses", licenses)
 print(f"Bundled FFmpeg ({target.stat().st_size / 1_000_000:.1f} MB) built from source for macOS {MINIMUM_MACOS}")
+
+# Gifsicle shrinks GIF exports after FFmpeg has written them.
+build = subprocess.run([str(root / "script/build_gifsicle.sh")], check=True, stdout=subprocess.PIPE, text=True)
+gifsicle = pathlib.Path(build.stdout.strip().splitlines()[-1])
+subprocess.run(["lipo", "-verify_arch", "arm64", str(gifsicle)], check=True)
+linked = subprocess.check_output(["otool", "-L", str(gifsicle)], text=True).splitlines()[1:]
+foreign = [line.strip() for line in linked if not line.strip().startswith(("/usr/lib/", "/System/Library/"))]
+if foreign:
+    raise SystemExit(f"Gifsicle links libraries outside macOS: {foreign}")
+if f"minos {MINIMUM_MACOS}" not in subprocess.check_output(["vtool", "-show-build", str(gifsicle)], text=True):
+    raise SystemExit(f"Gifsicle must run on macOS {MINIMUM_MACOS}")
+target = resources / "gifsicle"
+shutil.copy2(gifsicle, target)
+target.chmod(0o755)
+subprocess.run(["strip", "-x", str(target)], check=True, stderr=subprocess.DEVNULL)
+subprocess.run(["codesign", "--force", "--sign", "-", str(target)], check=True,
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+licenses = resources / "Licenses/Gifsicle"
+shutil.rmtree(licenses, ignore_errors=True)
+shutil.copytree(gifsicle.parent.parent / "licenses/gifsicle", licenses)
+print(f"Bundled Gifsicle ({target.stat().st_size / 1_000:.0f} KB) built from source for macOS {MINIMUM_MACOS}")

@@ -52,3 +52,12 @@ components, in exactly these versions, is attached to every GitHub release as
 `KapKap-<version>-third-party-sources.tar` (https://github.com/design-ninja/KapKap/releases),
 and `script/build_ffmpeg.sh` in KapKap's repository rebuilds the executable from it. You may
 replace the bundled FFmpeg with your own build.
+
+GIF exports are then shrunk by a bundled Gifsicle, a separate program at
+`Contents/Resources/gifsicle`, built from the unmodified source below with
+`script/build_gifsicle.sh`. Its license is in `Contents/Resources/Licenses/Gifsicle`, its source is
+in the same release archive, and you may replace it with your own build.
+
+| Component | Version | Source archive | License |
+| --- | --- | --- | --- |
+| Gifsicle | 1.96 | gifsicle-1.96.tar.gz | GPL-2.0-only |

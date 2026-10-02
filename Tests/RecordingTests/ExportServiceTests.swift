@@ -43,6 +43,36 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(try hiddenFiles(), [])
     }
 
+    func testLossyGIFIsSmallerAndNeedsGifsicle() async throws {
+        let ffmpeg = try exportTool()
+        let input = try source(seconds: 2, ffmpeg: ffmpeg)
+        let bundled = ffmpeg.deletingLastPathComponent().appendingPathComponent("gifsicle")
+        guard FileManager.default.isExecutableFile(atPath: bundled.path) else {
+            throw XCTSkip("Rebuild the app bundle to include Gifsicle.")
+        }
+        func export(_ quality: ExportQuality, executable: URL = ffmpeg) async throws -> Int {
+            let destination = folder.appendingPathComponent("\(quality.rawValue).gif")
+            try await ExportService.export(input: input, destination: destination,
+                options: ExportOptions(format: .gif, start: 0, end: 2, width: 320, fps: 15, muted: true, quality: quality),
+                executable: executable)
+            return try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        }
+        let best = try await export(.best)
+        let balanced = try await export(.balanced)
+        XCTAssertGreaterThan(balanced, 1000)
+        XCTAssertLessThan(balanced, best)
+        XCTAssertEqual(try hiddenFiles(), [])
+
+        // FFmpeg alone, with no Gifsicle beside it, cannot make a lossy GIF.
+        let alone = folder.appendingPathComponent("tools", isDirectory: true)
+        try FileManager.default.createDirectory(at: alone, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alone.appendingPathComponent("ffmpeg"), withDestinationURL: ffmpeg)
+        do { _ = try await export(.smaller, executable: alone.appendingPathComponent("ffmpeg")); XCTFail("Gifsicle is missing") }
+        catch { XCTAssertTrue("\(error)".contains("missing"), "\(error)") }
+        let lossless = try await export(.best, executable: alone.appendingPathComponent("ffmpeg"))
+        XCTAssertGreaterThan(lossless, 1000)
+    }
+
     @MainActor func testEditorEstimateAppearsAfterLoadingAndTracksSettings() async throws {
         let ffmpeg = try exportTool()
         let input = try source(seconds: 1, ffmpeg: ffmpeg)

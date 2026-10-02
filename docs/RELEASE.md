@@ -25,8 +25,9 @@ GitHub release with a new `appcast.xml` is what ships an update. `script/release
    built from pinned sources by `script/build_ffmpeg.sh`, which downloads them into
    `dist/release/sources/` and checks their SHA-256. x264 has no release tarballs: keep
    `x264-b35605a.tar.bz2` there. Each release carries these archives as
-   `KapKap-<version>-third-party-sources.tar`, since FFmpeg, x264 and x265 are GPL. To update a
-   component, change its line in the script and its row in `THIRD_PARTY_NOTICES.md`.
+   `KapKap-<version>-third-party-sources.tar`, since FFmpeg, x264 and x265 are GPL. Gifsicle, also
+   GPL, is built the same way by `script/build_gifsicle.sh` and its archive is packed alongside. To
+   update a component, change its line in the script and its row in `THIRD_PARTY_NOTICES.md`.
 
 ## Every release
 
@@ -44,7 +45,7 @@ GitHub release with a new `appcast.xml` is what ships an update. `script/release
 The script moves the `[Unreleased]` notes under the new version, raises `CFBundleVersion`,
 builds with the hardened runtime and the Developer ID certificate (the shipped binaries are
 stripped; `KapKap.app.dSYM` next to the app keeps the symbols for crash reports), packs exactly
-the source archives FFmpeg was built from (each must be listed in `THIRD_PARTY_NOTICES.md`), notarizes and staples the app,
+the source archives FFmpeg and Gifsicle were built from (each must be listed in `THIRD_PARTY_NOTICES.md`), notarizes and staples the app,
 zips it, writes an `appcast.xml` signed with the Sparkle key (release notes included), commits,
 tags `v0.2.0`, pushes and creates the GitHub release with the zip and the appcast attached.
 

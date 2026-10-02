@@ -6,6 +6,12 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- GIF exports offer the quality menu. Balanced and Smaller file shrink GIFs with a bundled Gifsicle,
+  like Kap's "Lossy GIF compression" (about a quarter smaller at Balanced); Best quality keeps them
+  as before. GIF remembers its own quality, apart from the one for video formats.
+
 ### Changed
 
 - The editor remembers the last export format, frame rate and destination (Copy to Clipboard or

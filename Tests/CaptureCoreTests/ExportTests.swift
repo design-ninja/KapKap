@@ -36,6 +36,20 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(try encoder(.av1, hardware: true), "libsvtav1")
     }
 
+    func testOnlyLossyGIFQualitiesRunGifsicle() {
+        let input = URL(fileURLWithPath: "/tmp/in.gif"), output = URL(fileURLWithPath: "/tmp/out.gif")
+        func compression(_ format: ExportFormat, _ quality: ExportQuality) -> [String]? {
+            ExportOptions(format: format, start: 0, end: 1, width: 100, fps: 30, muted: true, quality: quality)
+                .compressionArguments(input: input, output: output)
+        }
+        XCTAssertEqual(compression(.gif, .balanced), ["-O3", "--gamma=1", "--lossy=20", "-o", output.path, input.path])
+        XCTAssertEqual(compression(.gif, .smaller)?.contains("--lossy=50"), true)
+        XCTAssertNil(compression(.gif, .best), "Best quality keeps the GIF FFmpeg wrote")
+        for format in ExportFormat.allCases where format != .gif {
+            XCTAssertNil(compression(format, .smaller))
+        }
+    }
+
     func testRecordingQualityBitRates() {
         // Standard keeps the previous formula, but 4K at 60 fps is no longer cut to 80 Mbps.
         XCTAssertEqual(RecordingQuality.standard.bitRate(width: 1920, height: 1080, fps: 60), 24_883_200)
