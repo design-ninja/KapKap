@@ -97,7 +97,7 @@ final class CaptureStore {
         guard phase == .idle else { return }
         clearWindowOutline()
         areaOverlay.close()
-        selectionModel.reset()
+        selectionModel.reset(to: lastArea)
         phase = .selecting
         selection.present(model: selectionModel) { [weak self] in self?.cancelSelection() }
         // The recorder's permanent overlay level is above the selection canvas.

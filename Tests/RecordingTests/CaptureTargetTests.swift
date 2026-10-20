@@ -35,6 +35,39 @@ final class CaptureTargetTests: XCTestCase {
         XCTAssertEqual(store.target?.rect, selected)
         XCTAssertTrue(store.hasSelectedArea)
         XCTAssertEqual(store.lastArea?.rect, selected)
+
+        defer { store.cancelSelection() }
+        store.selectDisplay(screen)
+        store.selectArea()
+
+        XCTAssertEqual(store.phase, .selecting)
+        XCTAssertEqual(store.selectionModel.target()?.rect, selected)
+        XCTAssertEqual(store.selectionModel.displayID, displayID)
+        XCTAssertEqual(store.selectionModel.bounds, screen.frame.size)
+        XCTAssertEqual(store.selectionModel.widthText, "320")
+        XCTAssertEqual(store.selectionModel.heightText, "200")
+        XCTAssertTrue(store.selectionModel.ready)
+
+        store.selectionModel.rect = CGRect(x: 10, y: 20, width: 100, height: 100)
+        store.cancelSelection()
+        store.selectArea()
+        XCTAssertEqual(store.selectionModel.target()?.rect, selected,
+                       "An abandoned edit must not replace the last recorded area.")
+    }
+
+    @MainActor func testSelectingWithoutASavedAreaClearsThePreviousDraft() throws {
+        let suite = "KapKap-empty-selection-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CaptureStore(defaults: defaults)
+        store.selectionModel.rect = CGRect(x: 10, y: 20, width: 320, height: 200)
+        defer { store.cancelSelection() }
+
+        store.selectArea()
+
+        XCTAssertFalse(store.selectionModel.hasArea)
+        XCTAssertFalse(store.selectionModel.ready)
+        XCTAssertEqual(store.selectionModel.rect, .zero)
     }
 
     @MainActor func testStartingSelectedAreaHidesPanelBeforeSchedulingRecording() throws {
@@ -64,5 +97,6 @@ final class CaptureTargetTests: XCTestCase {
         store.startSelectedArea()
 
         XCTAssertFalse(panel.isVisible, "The panel must disappear before switching back to its main controls.")
+        XCTAssertEqual(store.lastArea?.rect, store.target?.rect)
     }
 }

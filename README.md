@@ -54,7 +54,8 @@ Audio, cursor, click highlighting, frame rate and recording quality live in Sett
 <details>
 <summary><b>Recording details</b></summary>
 
-- **Starting area.** On launch KapKap restores the last area. Until one is saved, it picks the
+- **Starting area.** On launch KapKap restores the last area. Selecting an area starts with that
+  same frame, ready to record, move or resize. Until one is saved, it picks the
   built-in display (otherwise the main display). Settings → Recording can switch back to the last
   area after you chose a display or window.
 - **Windows.** The window picker lists one entry per app with an on-screen window, front to back.
