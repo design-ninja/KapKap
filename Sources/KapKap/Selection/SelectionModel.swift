@@ -1,4 +1,5 @@
 import AppKit
+import CaptureCore
 import Observation
 
 /// Selection state lives outside the overlay so the recorder panel can drive it from its own window.
@@ -22,7 +23,7 @@ final class SelectionModel {
     var ready: Bool { rect.width >= 16 && rect.height >= 16 }
     var hasArea: Bool { displayID != nil && !rect.isEmpty }
 
-    func reset() {
+    func reset(to area: CaptureTarget? = nil) {
         rect = .zero
         displayID = nil
         screenFrame = .zero
@@ -30,6 +31,11 @@ final class SelectionModel {
         ratio = "Free"
         locked = false
         interacting = false
+        if let area {
+            activate(displayID: area.displayID, screenFrame: area.screenFrame,
+                     scale: area.scale, bounds: area.screenFrame.size)
+            rect = CaptureGeometry.sourceRect(selection: area.rect, screen: area.screenFrame)
+        }
         syncFields()
     }
 
