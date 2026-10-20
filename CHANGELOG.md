@@ -6,6 +6,8 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-20
+
 ### Fixed
 
 - Selecting a recording area restores the last recorded area's position and size, ready to record,
@@ -168,7 +170,8 @@ All notable changes to KapKap are listed here. The format follows
 - Recent recordings list with poster frames, reveal in Finder and copy to clipboard.
 - The last selected area is restored on launch.
 
-[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/design-ninja/KapKap/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/design-ninja/KapKap/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/design-ninja/KapKap/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/design-ninja/KapKap/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/design-ninja/KapKap/compare/v0.4.0...v0.5.0
