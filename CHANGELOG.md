@@ -6,6 +6,11 @@ All notable changes to KapKap are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Selecting a recording area restores the last recorded area's position and size, ready to record,
+  move or resize. Cancelling an edit keeps the saved area intact.
+
 ## [0.6.0] - 2026-10-02
 
 ### Added
